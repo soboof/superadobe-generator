@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Adobe Generator</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header id="app-header">
+    <div class="logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">Super<strong>Adobe</strong> Generator</span>
+    </div>
+    <div id="step-tabs">
+      <button class="step-tab active" data-level="1"><span class="step-num">1</span> Layout</button>
+      <span class="step-sep">→</span>
+      <button class="step-tab" data-level="2"><span class="step-num">2</span> Layering</button>
+      <span class="step-sep">→</span>
+      <button class="step-tab" data-level="3"><span class="step-num">3</span> Simulation</button>
+    </div>
+    <div class="header-actions">
+      <button class="btn-ghost" id="btn-export">Export Report</button>
+      <button class="btn-primary" id="btn-print">Print Plans</button>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <div id="app-layout">
+
+    <!-- Left panel: Design controls -->
+    <aside id="panel-left">
+
+      <!-- Site: upload a scanned point cloud of the real land as the ground -->
+      <div class="panel-section" data-level="1">
+        <h3 class="section-title">Site — Land Scan</h3>
+        <label class="file-drop" id="land-drop">
+          <input type="file" id="land-file" accept=".ply,.xyz,.txt,.asc,.pts" hidden />
+          <span class="fd-icon">⛰</span>
+          <span id="land-drop-label">Upload point cloud (.ply / .xyz)</span>
+        </label>
+        <div class="control-row" style="margin-top:8px">
+          <label>Up axis</label>
+          <div class="seg" id="land-up">
+            <button type="button" class="seg-btn active" data-up="auto">Auto</button>
+            <button type="button" class="seg-btn" data-up="y">Y-up</button>
+            <button type="button" class="seg-btn" data-up="z">Z-up</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Scale <span class="unit">units → m</span></label>
+          <div class="slider-row">
+            <input type="number" id="land-scale" min="0.001" step="0.1" value="1" class="num-input" />
+          </div>
+        </div>
+        <div id="land-info" class="land-info" style="display:none"></div>
+        <div class="structure-actions" id="land-clear-row" style="display:none; margin-top:6px">
+          <button class="btn-mini danger" id="btn-land-clear">Remove scan</button>
+        </div>
+        <p class="hint">Scan your plot with a phone LiDAR / photogrammetry app and export a point cloud. The app grids it into ground and plants the domes on the real surface. Keep the scan in metres, or set the scale.</p>
+      </div>
+
+      <!-- Complex / structure manager (Layout only — layering treats the whole complex as one) -->
+      <div class="panel-section" data-level="1">
+        <h3 class="section-title">Complex — Structures</h3>
+        <div id="structure-list"></div>
+        <div class="structure-actions">
+          <button class="btn-mini" id="btn-add-structure">+ Add Dome</button>
+          <button class="btn-mini" id="btn-add-apse">+ Ideal Apse</button>
+        </div>
+        <div class="structure-actions" style="margin-top:5px">
+          <button class="btn-mini" id="btn-dup-structure">Duplicate</button>
+          <button class="btn-mini danger" id="btn-del-structure">Delete</button>
+        </div>
+        <p class="hint">Click a structure in the 3D view to select it. Overlap domes and the courses stop at the intersection (sewn rings). “Ideal Apse” adds a buttressing apse per the 45° rule.</p>
+      </div>
+
+      <div class="panel-section" data-level="1">
+        <h3 class="section-title">Structure Type</h3>
+        <div class="radio-grid" id="structure-type">
+          <label class="radio-card active" data-type="dome">
+            <span class="rc-icon">⌂</span>
+            <span>Dome</span>
+          </label>
+          <label class="radio-card" data-type="vault">
+            <span class="rc-icon">⌣</span>
+            <span>Vault</span>
+          </label>
+          <label class="radio-card" data-type="cylinder">
+            <span class="rc-icon">○</span>
+            <span>Cylinder</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="1">
+        <h3 class="section-title">Dimensions</h3>
+
+        <div class="control-row">
+          <label>Inner Diameter <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-diameter" min="2" max="12" step="0.1" value="5" />
+            <input type="number" id="n-diameter" min="2" max="12" step="0.1" value="5" class="num-input" />
+          </div>
+        </div>
+
+        <div class="control-row" id="row-pointiness">
+          <label>Dome Shape <span class="unit" id="lbl-pointiness">pointed</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-pointiness" min="0" max="150" step="5" value="100" />
+            <input type="number" id="n-pointiness" min="0" max="150" step="5" value="100" class="num-input" />
+          </div>
+        </div>
+
+        <div class="control-row" id="row-closedtop">
+          <label class="chk-row"><input type="checkbox" id="chk-closedtop" /> Closed top (seal skylight)</label>
+        </div>
+
+        <div class="control-row" id="row-skylight">
+          <label>Skylight Radius <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-skylight" min="0.1" max="1.5" step="0.05" value="0.35" />
+            <input type="number" id="n-skylight" min="0.1" max="1.5" step="0.05" value="0.35" class="num-input" />
+          </div>
+        </div>
+
+
+        <div class="control-row" id="row-height" style="display:none">
+          <label>Wall Height <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-height" min="1" max="6" step="0.1" value="3" />
+            <input type="number" id="n-height" min="1" max="6" step="0.1" value="3" class="num-input" />
+          </div>
+        </div>
+
+        <div class="control-row" id="row-vault-length" style="display:none">
+          <label>Vault Length <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-vault-length" min="2" max="20" step="0.5" value="6" />
+            <input type="number" id="n-vault-length" min="2" max="20" step="0.5" value="6" class="num-input" />
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Foundation stem wall -->
+      <div class="panel-section" data-level="1" id="section-foundation">
+        <h3 class="section-title">Foundation</h3>
+        <div class="control-row">
+          <label>Foundation Rows</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="stepper">
+              <button class="step-btn" data-field="foundationRows" data-delta="-1">−</button>
+              <span id="val-foundationRows" class="step-val">0</span>
+              <button class="step-btn" data-field="foundationRows" data-delta="1">+</button>
+            </div>
+            <span class="unit" id="lbl-foundation-height" style="color:var(--fg-muted)"></span>
+          </div>
+        </div>
+        <p class="hint" id="foundation-hint">No cylindrical base — dome curves from ground level.</p>
+      </div>
+
+      <!-- Placement on the site -->
+      <div class="panel-section" data-level="1">
+        <h3 class="section-title">Placement</h3>
+        <div class="control-row">
+          <label>Position X <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-posx" min="-15" max="15" step="0.25" value="0" />
+            <input type="number" id="n-posx" min="-15" max="15" step="0.25" value="0" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Position Z <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-posz" min="-15" max="15" step="0.25" value="0" />
+            <input type="number" id="n-posz" min="-15" max="15" step="0.25" value="0" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Rotation <span class="unit">°</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-rot" min="0" max="360" step="5" value="0" />
+            <input type="number" id="n-rot" min="0" max="360" step="5" value="0" class="num-input" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="1">
+        <h3 class="section-title">Openings</h3>
+        <div class="control-row">
+          <label>Doors</label>
+          <div class="stepper">
+            <button class="step-btn" data-field="doors" data-delta="-1">−</button>
+            <span id="val-doors" class="step-val">1</span>
+            <button class="step-btn" data-field="doors" data-delta="1">+</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Windows</label>
+          <div class="stepper">
+            <button class="step-btn" data-field="windows" data-delta="-1">−</button>
+            <span id="val-windows" class="step-val">0</span>
+            <button class="step-btn" data-field="windows" data-delta="1">+</button>
+          </div>
+        </div>
+        <div class="control-row" id="row-winshape">
+          <label>Window Shape</label>
+          <div class="radio-grid" id="window-shape" style="margin-top:4px">
+            <label class="radio-card active" data-winshape="rect"><span class="rc-icon">▢</span><span>Rect</span></label>
+            <label class="radio-card" data-winshape="circle"><span class="rc-icon">◯</span><span>Circle</span></label>
+          </div>
+        </div>
+        <div class="control-row" id="row-windiam" style="display:none">
+          <label>Window Diameter <span class="unit">cm</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-windiam" min="40" max="160" step="5" value="80" />
+            <input type="number" id="n-windiam" min="40" max="160" step="5" value="80" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Door Width <span class="unit">cm</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-doorwidth" min="60" max="150" step="5" value="90" />
+            <input type="number" id="n-doorwidth" min="60" max="150" step="5" value="90" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row" id="row-headshape">
+          <label>Door Head Shape</label>
+          <div class="radio-grid" id="door-head-shape" style="margin-top:4px">
+            <label class="radio-card" data-headshape="flat"><span class="rc-icon">▬</span><span>Flat</span></label>
+            <label class="radio-card active" data-headshape="semicircle"><span class="rc-icon">⌢</span><span>Semicircle</span></label>
+            <label class="radio-card" data-headshape="arc"><span class="rc-icon">⌣</span><span>Arc</span></label>
+          </div>
+        </div>
+        <div class="control-row" id="row-archeight" style="display:none">
+          <label>Arc Rise <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-archeight" min="0.1" max="1.2" step="0.05" value="0.4" />
+            <input type="number" id="n-archeight" min="0.1" max="1.2" step="0.05" value="0.4" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row" id="row-doorpreview">
+          <label>Door Head Preview <span class="unit" id="lbl-doorpreview">drag the pivot ●</span></label>
+          <div id="door-head-preview"></div>
+        </div>
+        <div class="control-row">
+          <label class="chk-row"><input type="checkbox" id="chk-corridor" checked /> Entrance corridor (door hall)</label>
+        </div>
+        <div class="control-row" id="row-corrlen">
+          <label>Corridor Length <span class="unit">m</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-corrlen" min="0.6" max="3" step="0.1" value="1.2" />
+            <input type="number" id="n-corrlen" min="0.6" max="3" step="0.1" value="1.2" class="num-input" />
+          </div>
+        </div>
+        <div id="opening-warnings"></div>
+        <p class="hint" id="opening-hint"></p>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Layering — Sack Courses</h3>
+        <div class="control-row">
+          <label>Bag Width <span class="unit">cm</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-bagwidth" min="30" max="80" step="5" value="50" />
+            <input type="number" id="n-bagwidth" min="30" max="80" step="5" value="50" class="num-input" />
+          </div>
+          <p class="hint" id="bag-hint" style="margin-top:4px"></p>
+        </div>
+        <div class="control-row">
+          <label>Course Height <span class="unit">cm</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-courseheight" min="8" max="20" step="1" value="12" />
+            <input type="number" id="n-courseheight" min="8" max="20" step="1" value="12" class="num-input" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Fill Material</h3>
+        <div class="radio-list" id="fill-type">
+          <label class="rl-item active" data-fill="sandy-loam">Sandy Loam <span class="badge eco">Ideal</span></label>
+          <label class="rl-item" data-fill="adobe">Adobe Soil</label>
+          <label class="rl-item" data-fill="sand-cement">Sand + Cement</label>
+          <label class="rl-item" data-fill="volcanic">Volcanic Ash</label>
+        </div>
+        <div class="control-row" style="margin-top:8px">
+          <label>Cement Stabilizer <span class="unit">%</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-cement" min="0" max="10" step="1" value="0" />
+            <input type="number" id="n-cement" min="0" max="10" step="1" value="0" class="num-input" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Crew & Schedule</h3>
+        <div class="control-row">
+          <label>Workers</label>
+          <div class="stepper">
+            <button class="step-btn" data-field="workers" data-delta="-1">−</button>
+            <span id="val-workers" class="step-val">3</span>
+            <button class="step-btn" data-field="workers" data-delta="1">+</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Hours/day</label>
+          <div class="stepper">
+            <button class="step-btn" data-field="hours" data-delta="-1">−</button>
+            <span id="val-hours" class="step-val">8</span>
+            <button class="step-btn" data-field="hours" data-delta="1">+</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Skill Level</label>
+          <select id="sel-skill" class="sel-input">
+            <option value="novice">Novice</option>
+            <option value="intermediate" selected>Intermediate</option>
+            <option value="expert">Expert</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ── SIMULATION (Level 3) inputs ── -->
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Material Model</h3>
+        <div class="control-row">
+          <label>Composite preset</label>
+          <select id="sim-preset" class="sel-input">
+            <option value="earth">Unstabilized earth</option>
+            <option value="lime">Lime-stabilized earth</option>
+            <option value="cement">Cement-stabilized earth</option>
+            <option value="idealized">Idealized composite (thesis FEA)</option>
+          </select>
+          <p class="hint" id="sim-preset-note"></p>
+        </div>
+        <div class="control-row">
+          <label>Compressive strength <span class="unit">MPa</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-fc" min="0.5" max="5" step="0.1" value="1.2" />
+            <input type="number" id="n-fc" min="0.5" max="5" step="0.1" value="1.2" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Tensile strength (earth) <span class="unit">MPa</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-ft" min="0.02" max="1" step="0.01" value="0.06" />
+            <input type="number" id="n-ft" min="0.02" max="1" step="0.01" value="0.06" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Young's modulus <span class="unit">GPa</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-emod" min="0.05" max="25" step="0.05" value="0.18" />
+            <input type="number" id="n-emod" min="0.05" max="25" step="0.05" value="0.18" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Block friction μ <span class="unit">+wire</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-mu" min="0.3" max="2" step="0.05" value="0.6" />
+            <input type="number" id="n-mu" min="0.3" max="2" step="0.05" value="0.6" class="num-input" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Load Case</h3>
+        <div class="control-row">
+          <label>Wind pressure <span class="unit">kPa</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-wind" min="0" max="3" step="0.1" value="1.0" />
+            <input type="number" id="n-wind" min="0" max="3" step="0.1" value="1.0" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Seismic coef. <span class="unit">g</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-seis" min="0" max="0.6" step="0.05" value="0.15" />
+            <input type="number" id="n-seis" min="0" max="0.6" step="0.05" value="0.15" class="num-input" />
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Ground bearing <span class="unit">kPa</span></label>
+          <div class="slider-row">
+            <input type="range" id="s-ground" min="20" max="400" step="10" value="150" />
+            <input type="number" id="n-ground" min="20" max="400" step="10" value="150" class="num-input" />
+          </div>
+        </div>
+        <p class="hint">Structural core = thesis ch.6 limit-state model (validated vs. Ansys FEA). Wind / seismic / thermal are standard engineering estimates, not a CFD/FEA solve.</p>
+      </div>
+
+      <!-- Level / step navigation -->
+      <div class="panel-section level-cta-wrap">
+        <div class="level-nav">
+          <button class="btn-level-back" id="btn-level-back" style="display:none">← Back</button>
+          <button class="btn-level-cta" id="btn-level-cta" data-go="2">Continue to Layering →</button>
+        </div>
+        <p class="hint" id="level-cta-hint">Assemble and position your domes, set openings, then continue to configure the courses and materials.</p>
+      </div>
+
+    </aside>
+
+    <!-- Center: 3D viewport -->
+    <main id="viewport-container">
+      <canvas id="three-canvas"></canvas>
+
+      <!-- View controls overlay -->
+      <div id="view-controls">
+        <button class="view-btn active" data-view="perspective">3D</button>
+        <button class="view-btn" data-view="top">Top</button>
+        <button class="view-btn" data-view="front">Front</button>
+        <button class="view-btn" data-view="section">Section</button>
+      </div>
+
+      <!-- Layer toggle overlay -->
+      <div id="layer-controls" data-level="2">
+        <span class="layer-label">Layers</span>
+        <label class="layer-toggle">
+          <input type="checkbox" id="layer-bags" checked />
+          <span class="toggle-chip earthbag">Earthbags</span>
+        </label>
+        <label class="layer-toggle">
+          <input type="checkbox" id="layer-wire" checked />
+          <span class="toggle-chip wire">Barbed Wire</span>
+        </label>
+        <label class="layer-toggle">
+          <input type="checkbox" id="layer-plaster" />
+          <span class="toggle-chip plaster">Plaster</span>
+        </label>
+        <label class="layer-toggle">
+          <input type="checkbox" id="layer-terrain" checked />
+          <span class="toggle-chip terrain">Terrain</span>
+        </label>
+      </div>
+
+      <!-- Course selector -->
+      <div id="course-nav" data-level="2">
+        <span class="cn-label">Course view</span>
+        <button id="cn-all" class="cn-btn active">All</button>
+        <button id="cn-step" class="cn-btn">Step</button>
+        <div id="cn-step-controls" style="display:none">
+          <button id="cn-prev">‹</button>
+          <span id="cn-current">1</span>
+          <button id="cn-next">›</button>
+        </div>
+      </div>
+
+      <!-- Simulation field selector (Stage 3) -->
+      <div id="sim-fields" data-level="3">
+        <span class="layer-label">Field</span>
+        <button class="sim-field-btn active" data-field="utilization">Utilisation</button>
+        <button class="sim-field-btn" data-field="compression">Compression</button>
+        <button class="sim-field-btn" data-field="hoop">Hoop</button>
+        <button class="sim-field-btn" data-field="shear">Shear</button>
+        <button class="sim-field-btn" data-field="bearing">Bearing F</button>
+      </div>
+
+      <!-- Simulation colour legend (Stage 3) -->
+      <div id="sim-legend" data-level="3">
+        <span id="sim-legend-title">Utilisation</span>
+        <div id="sim-legend-bar"></div>
+        <div id="sim-legend-scale"><span id="sim-legend-lo">0</span><span id="sim-legend-hi">1</span></div>
+      </div>
+
+      <div id="status-bar">
+        <span id="status-fps">60 fps</span>
+        <span id="status-structures">— structures</span>
+        <span id="status-courses">— courses</span>
+        <span id="status-poly">— triangles</span>
+      </div>
+
+      <!-- Position gizmo — X/Z drag arrows for the selected dome (layout/layering) -->
+      <svg id="pos-gizmo" data-level="1 2"></svg>
+    </main>
+
+    <!-- Right panel: Results -->
+    <aside id="panel-right">
+
+      <div class="panel-section" id="results-summary" data-level="2">
+        <h3 class="section-title">Complex Materials Total</h3>
+        <div class="stat-grid">
+          <div class="stat-card" id="stat-bags">
+            <span class="stat-val">—</span>
+            <span class="stat-label">Earthbags</span>
+          </div>
+          <div class="stat-card" id="stat-wire">
+            <span class="stat-val">—</span>
+            <span class="stat-label">Wire (m)</span>
+          </div>
+          <div class="stat-card" id="stat-fill">
+            <span class="stat-val">—</span>
+            <span class="stat-label">Fill m³</span>
+          </div>
+          <div class="stat-card" id="stat-plaster">
+            <span class="stat-val">—</span>
+            <span class="stat-label">Plaster m²</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section" id="selected-summary">
+        <h3 class="section-title">Selected Structure</h3>
+        <div class="mini-stats" id="mini-stats"></div>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Detailed Quantities <span class="muted" id="detail-scope">(complex)</span></h3>
+        <table class="detail-table" id="detail-table">
+          <thead><tr><th>Item</th><th>Qty</th><th>Unit</th></tr></thead>
+          <tbody id="detail-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Time Estimate <span class="muted">(whole complex)</span></h3>
+        <div class="time-breakdown" id="time-breakdown"></div>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Layer Plan <span class="muted">(selected)</span></h3>
+        <div id="layer-plan-container">
+          <canvas id="layer-plan-canvas" width="260" height="320"></canvas>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="2">
+        <h3 class="section-title">Eco Score</h3>
+        <div id="eco-score-container">
+          <div class="eco-bar-wrap">
+            <div class="eco-bar" id="eco-bar"></div>
+          </div>
+          <span id="eco-score-val">—</span>
+          <p id="eco-score-desc" class="eco-desc"></p>
+        </div>
+      </div>
+
+      <!-- ── SIMULATION (Level 3) results ── -->
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Verdict <span class="muted" id="sim-scope">(selected dome)</span></h3>
+        <div id="sim-verdict" class="sim-verdict">—</div>
+        <div id="sim-util-wrap">
+          <div class="sim-util-bar-wrap"><div class="sim-util-bar" id="sim-util-bar"></div></div>
+          <div class="sim-util-row"><span>Peak utilisation</span><span id="sim-util-val">—</span></div>
+          <div class="sim-util-row"><span>Governing</span><span id="sim-gov">—</span></div>
+        </div>
+      </div>
+
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Global Stability</h3>
+        <div id="sim-global"></div>
+      </div>
+
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Peak Stresses <span class="muted">vs thesis FEA</span></h3>
+        <table class="detail-table"><tbody id="sim-bench"></tbody></table>
+      </div>
+
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Seismic <span class="muted">(equiv. static)</span></h3>
+        <div class="mini-stats" id="sim-seismic"></div>
+      </div>
+
+      <div class="panel-section" data-level="3">
+        <h3 class="section-title">Thermal <span class="muted">(earthen wall)</span></h3>
+        <div class="mini-stats" id="sim-thermal"></div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="js/superadobe.js"></script>
+  <script src="js/calculator.js"></script>
+  <script src="js/simulation.js"></script>
+  <script src="js/layerplan.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/gizmo.js"></script>
+  <script src="js/levels.js"></script>
+</body>
+</html>

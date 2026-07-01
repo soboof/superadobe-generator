@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "super-adobe",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3737", "-s", "."],
+      "port": 3737
+    }
+  ]
+}
