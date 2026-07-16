@@ -45,8 +45,24 @@ H    = h1 + √((Rb + a)² − (Rt + a)²)          (total height)
 ```
 `Rb` = base radius · `a` = arch offset (pointiness) · `Rt` = skylight radius · `h1` = cylindrical base height.
 
+**Courses live only on the course-height grid.** The profile is sampled every `hs` (one ring per
+bag height, §3.6.6) and **ends at the last ring that actually rests on the one below** — there is
+no extra ring at the theoretical arc top, and a course whose inward step exceeds the flat bag
+width `L = sw − hs` (paper eq. 8′ with F ≤ 0 — it would float) is refused, truncating the dome.
+`Rt` is therefore a **lower bound** ("t_min" in the thesis); the *achieved* skylight radius —
+the top ring's inner radius — is reported live under the Skylight slider.
+
+**Geometric coherency F (paper eq. 8′).** For every pair of consecutive rings,
+`F = (L − step)/L` is the fraction of the flat bag width still bearing on the ring below. The
+worst pair is shown as a live green/amber/red bar (Layout **and** Layering stages, since
+diameter, shape, skylight, bag width and course height all move it). `SuperAdobe.coherency`.
+
 A dome can also be **closed at the top** ("Closed top" option): the skylight is sealed to a tiny
 apex and the Stage-1 shell gets a smooth rounded cap (`buildShellGeometry`, `s.closedTop`).
+
+A **"Conventional — rr = 2·rb + sw"** button sets the pointiness to the thesis's standard shape
+(the vertical compass planted on the outer edge of the base sack, Fig. 3-28); the shape label
+reads "conventional" whenever the slider is on it.
 
 **Plane slicing is the single source of truth.** At any height, each dome is a circle; the
 layer curve is each circle's arc that lies **outside every other dome** (union boundary) and
@@ -60,8 +76,26 @@ outside any opening (`sliceSpans`). Both stages consume it:
 ## Construction rules (from thesis §3.6)
 
 - **Opening quadrant rule (§3.6.9).** Max **4 openings, one per imaginary quadrant**; wall
-  arc between openings ≥ **1.25 m**. Ideal door 1.5 × 1.8 m, window 1.0 × 1.5 m. Violations
-  show as warnings. `computeOpenings` / `validateOpenings`.
+  arc between openings ≥ **1.25 m** — evaluated **at the heights where the openings actually
+  are**, on the shrinking ring radius `x(h)`, not at the base. Ideal door 1.5 × 1.8 m, window
+  1.0 × 1.5 m. Violations show as warnings. `computeOpenings` / `validateOpenings`.
+
+- **Openings snap to the course grid (§3.6.7).** Molds sit on top of a finished ring, so every
+  sill and springline lands on a **course boundary**. The door mold is set once the wall reaches
+  0.2–0.6 m, so whole **threshold courses run continuously under the doorway** (the strongest
+  tie in the structure); the door's 1.8 m clear height is measured from the mold base and the
+  head bag rests on a completed course.
+
+- **Barbed wire — double line, toward the interior (§3.6.6).** Two strands are stitched into
+  the bedding joint on top of every course, laid **astride the NEXT ring's centreline** (biased
+  inward "to hold in place the next ring"). The top ring gets no wire. The calculator counts
+  **2 × (perimeter + 1.25 m)** per joint; the 2D section draws the strands as **dots** (they
+  cross the section plane). `buildWireGeometries`.
+
+- **Base buttress (§3.6.8–3.6.9).** Optional real element (checkbox in Foundation): an extra
+  sack wall hugging the dome's outer face up to **50 cm above the springline**, sewn on with
+  double wire, cut at doorways/corridors and neighbour intersections, included in material and
+  time totals. The Ø > 1.5 m advisory points to it. `buttressCourses`.
 
 - **The intersection rule (§3.6.8).** Where two domes meet, each course alternates by
   junction: one dome's bag extends a **half-bag past** the seam (covers) while the other
@@ -117,7 +151,7 @@ study of the source books, the comparison, and the simulation research.
 | `index.html` | Layout (3-column: controls · viewport · results), `data-level` tags per stage |
 | `css/style.css` | Dark theme, CSS custom properties |
 | `js/superadobe.js` | Geometry engine — profiles, slicing, shell loft, bag sweep, openings, intersection rule, corridors |
-| `js/calculator.js` | Material quantities, time estimate, eco score; `aggregateComplex` for the whole site |
+| `js/calculator.js` | Material quantities (continuous sack cut per ring + 1.25 m overcut; openings carved from every ring per paper eq. 10′), time from the thesis §3.6.12 rate (~0.1875 m of laid sack per man-hour), eco score; `aggregateComplex` for the whole site |
 | `js/simulation.js` | **Structural / thermal / seismic / wind analysis (Stage 3)** — thesis ch. 6 model + membrane theory |
 | `js/main.js` | Three.js scene, orbit controls, render-level switch (1/2/3), sim heat-map paint, raycast pick |
 | `js/ui.js` | Structure list + per-structure controls; drives scene/calculator/layer-plan/simulation |

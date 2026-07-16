@@ -112,6 +112,9 @@
             <input type="range" id="s-pointiness" min="0" max="150" step="5" value="100" />
             <input type="number" id="n-pointiness" min="0" max="150" step="5" value="100" class="num-input" />
           </div>
+          <button class="mini-btn" id="btn-conventional"
+            title="Set the vertical compass on the outer edge of the base sack (thesis Fig. 3-28) — the shape every conventional superadobe dome is built to">
+            Conventional — rr = 2·rb + sw</button>
         </div>
 
         <div class="control-row" id="row-closedtop">
@@ -124,6 +127,7 @@
             <input type="range" id="s-skylight" min="0.1" max="1.5" step="0.05" value="0.35" />
             <input type="number" id="n-skylight" min="0.1" max="1.5" step="0.05" value="0.35" class="num-input" />
           </div>
+          <p class="hint" id="skylight-hint" style="margin-top:4px"></p>
         </div>
 
 
@@ -145,6 +149,18 @@
 
       </div>
 
+      <!-- Geometric coherency F (paper eq. 8'): live worst-ring bearing.
+           Shown in Layout AND Layering — diameter/shape/skylight (L1) and
+           bag width/course height (L2) all move it. -->
+      <div class="panel-section" data-level="1 2" id="section-coherency">
+        <h3 class="section-title">Geometric Coherency <span class="unit">F, eq. 8′</span></h3>
+        <div class="fbar-row">
+          <div class="fbar-wrap"><div class="fbar" id="fbar"></div></div>
+          <span class="fbar-val" id="fbar-val">—</span>
+        </div>
+        <p class="hint" id="coherency-hint"></p>
+      </div>
+
       <!-- Foundation stem wall -->
       <div class="panel-section" data-level="1" id="section-foundation">
         <h3 class="section-title">Foundation</h3>
@@ -160,6 +176,10 @@
           </div>
         </div>
         <p class="hint" id="foundation-hint">No cylindrical base — dome curves from ground level.</p>
+        <div class="control-row" style="margin-top:8px">
+          <label class="chk-row"><input type="checkbox" id="chk-buttress" /> Base buttress (§3.6.8–9)</label>
+        </div>
+        <p class="hint">An extra sack wall sewn around the base with barbed-wire “s”s, carried to 50 cm above the springline — the thesis requires one for domes over Ø 1.5 m unless an apse buttresses them.</p>
       </div>
 
       <!-- Placement on the site -->
@@ -485,7 +505,7 @@
         <div class="stat-grid">
           <div class="stat-card" id="stat-bags">
             <span class="stat-val">—</span>
-            <span class="stat-label">Earthbags</span>
+            <span class="stat-label">Sack (m)</span>
           </div>
           <div class="stat-card" id="stat-wire">
             <span class="stat-val">—</span>

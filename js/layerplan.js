@@ -101,28 +101,23 @@ const LayerPlan = (() => {
       ctx.fill();
       ctx.stroke();
 
-      // Barbed wire line (top of each course)
-      const wireY = ty(y + ch / 2);
-      ctx.strokeStyle = `rgba(200,168,75,${baseAlpha * 0.9})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(txL(rOuter + 0.01), wireY);
-      ctx.lineTo(tx(rOuter + 0.01), wireY);
-      ctx.stroke();
-
-      // Wire barbs (small ticks)
-      ctx.strokeStyle = `rgba(200,168,75,${baseAlpha * 0.6})`;
-      ctx.lineWidth = 1;
-      const barbSpacing = 16;
-      for (let bx = txL(rOuter); bx <= tx(rOuter); bx += barbSpacing) {
-        ctx.beginPath();
-        ctx.moveTo(bx - 3, wireY - 3);
-        ctx.lineTo(bx + 3, wireY + 3);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(bx + 3, wireY - 3);
-        ctx.lineTo(bx - 3, wireY + 3);
-        ctx.stroke();
+      // Barbed wire: the strands run circumferentially, so in this radial
+      // section they read as DOTS on the bedding joint — the §3.6.6 DOUBLE
+      // line, stitched toward the interior so it sits under the NEXT ring
+      // (drawn astride the next course's centreline). No wire on the top
+      // course: nothing rests on it.
+      const nextC = actualProfile[i + 1];
+      if (nextC) {
+        const wireY = ty(y + ch / 2);
+        const spread = Math.min(0.05, Math.max(0.015, (bw - ch) / 4));
+        ctx.fillStyle = `rgba(200,168,75,${baseAlpha * 0.95})`;
+        [nextC.r - spread, nextC.r + spread].forEach(rw => {
+          [tx(rw), txL(rw)].forEach(px => {
+            ctx.beginPath();
+            ctx.arc(px, wireY, 1.7, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        });
       }
 
       // Course number
@@ -210,10 +205,10 @@ const LayerPlan = (() => {
     ctx.font = '8px monospace';
     ctx.fillStyle = 'rgba(180,130,60,0.9)';
     ctx.fillRect(8, 8, 10, 8); ctx.fillStyle = '#94a3b8'; ctx.fillText('Earthbag', 21, 16);
-    ctx.strokeStyle = 'rgba(200,168,75,0.9)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(8, 28); ctx.lineTo(18, 28); ctx.stroke();
-    ctx.fillStyle = '#94a3b8'; ctx.fillText('Barbed wire', 21, 32);
+    ctx.fillStyle = 'rgba(200,168,75,0.95)';
+    ctx.beginPath(); ctx.arc(11, 28, 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(16, 28, 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#94a3b8'; ctx.fillText('Barbed wire ×2 (section)', 21, 32);
   }
 
   return { draw };

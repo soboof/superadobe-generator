@@ -249,46 +249,51 @@
           m.castShadow = true; m.receiveShadow = true;
           bagGroup.add(m);
         });
-        // Barbed wire is laid across the bag CENTRELINE on the bedding plane
-        // between this course and the next — its real position — which is the
-        // structure surface that runs through the bag centres.
-        const jointY = c.y + ch / 200 + 0.004;
-        const surfR = c.r;
-        // Door→corridor bridges: where the ring wire ends at a doorway that has
-        // a corridor, run it out along the jambs to the corridor mouth so the
-        // dome and corridor wires are ONE connected line through the layer
-        // (broken only at windows and the open corridor mouth). Jamb region only.
-        let bridges = null;
-        if (s.type === 'dome' && s.corridor && s.doors > 0) {
-          const bwM = bw / 100;
-          const startR = (profile[0] ? profile[0].inner : innerR) + bwM;
-          const Lout = startR + (s.corridorLen || 1.2);
-          bridges = [];
-          openings.forEach(d => {
-            if (d.kind !== 'door') return;
-            const sl = d.springline != null ? d.springline : d.top;
-            if (c.y > sl + 1e-6) return;                   // jamb region only
-            const inJamb = (c.y + ch / 200) <= sl + 1e-6;  // matches openingGaps notch
-            const plusCut = (i % 2) === 1;
-            const hwPlus  = d.width / 2 + (inJamb && plusCut ? bwM : 0);
-            const hwMinus = d.width / 2 + (inJamb && !plusCut ? bwM : 0);
-            const hi = d.angle + hwPlus / c.r;
-            const lo = d.angle - hwMinus / c.r;
-            const zc = d.width / 2 + bwM / 2;               // jamb centreline offset
-            const Rd = c.inner + bwM;                       // dome outer face radius here
-            const jx = Math.sqrt(Math.max(0.01, Rd * Rd - zc * zc));
-            const ca = Math.cos(d.angle), sa = Math.sin(d.angle);
-            const rot = (x, z) => ({ x: x * ca - z * sa, z: x * sa + z * ca });
-            bridges.push({
-              hi, lo,
-              prepend: [rot(Lout, zc), rot(jx, zc)],         // +z mouth → jamb → ring
-              append:  [rot(jx, -zc), rot(Lout, -zc)],       // ring → jamb → −z mouth
+        // Barbed wire: the §3.6.6 DOUBLE strand in the bedding joint on top of
+        // this course, stitched toward the INTERIOR so it sits under the NEXT
+        // ring — laid astride the next course's centreline. The top course of
+        // the whole profile gets no wire (nothing rests on it).
+        const next = profile[i + 1];
+        if (next) {
+          const jointY = c.y + ch / 200 + 0.004;
+          const spreadM = Math.min(0.05, Math.max(0.015, (bw / 100 - ch / 100) / 4));
+          // Door→corridor bridges: where the ring wire ends at a doorway that has
+          // a corridor, run it out along the jambs to the corridor mouth so the
+          // dome and corridor wires are ONE connected line through the layer
+          // (broken only at windows and the open corridor mouth). Jamb region only.
+          let bridges = null;
+          if (s.type === 'dome' && s.corridor && s.doors > 0) {
+            const bwM = bw / 100;
+            const startR = (profile[0] ? profile[0].inner : innerR) + bwM;
+            const Lout = startR + (s.corridorLen || 1.2);
+            bridges = [];
+            openings.forEach(d => {
+              if (d.kind !== 'door') return;
+              const sl = d.springline != null ? d.springline : d.top;
+              if (c.y > sl + 1e-6) return;                   // jamb region only
+              if (c.y < (d.bottom || 0) - 1e-6) return;      // below the threshold: ring is unbroken
+              const inJamb = (c.y + ch / 200) <= sl + 1e-6;  // matches openingGaps notch
+              const plusCut = (i % 2) === 1;
+              const hwPlus  = d.width / 2 + (inJamb && plusCut ? bwM : 0);
+              const hwMinus = d.width / 2 + (inJamb && !plusCut ? bwM : 0);
+              const hi = d.angle + hwPlus / c.r;
+              const lo = d.angle - hwMinus / c.r;
+              const zc = d.width / 2 + bwM / 2;               // jamb centreline offset
+              const Rd = c.inner + bwM;                       // dome outer face radius here
+              const jx = Math.sqrt(Math.max(0.01, Rd * Rd - zc * zc));
+              const ca = Math.cos(d.angle), sa = Math.sin(d.angle);
+              const rot = (x, z) => ({ x: x * ca - z * sa, z: x * sa + z * ca });
+              bridges.push({
+                hi, lo,
+                prepend: [rot(Lout, zc), rot(jx, zc)],         // +z mouth → jamb → ring
+                append:  [rot(jx, -zc), rot(Lout, -zc)],       // ring → jamb → −z mouth
+              });
             });
-          });
-          if (!bridges.length) bridges = null;
+            if (!bridges.length) bridges = null;
+          }
+          SuperAdobe.buildWireGeometries(jointY, next.r, gaps, (ch / 100) * 0.35, bridges, spreadM)
+            .forEach(wg => wireGroup.add(new THREE.LineSegments(wg, wireMat)));
         }
-        SuperAdobe.buildWireGeometries(jointY, surfR, gaps, (ch / 100) * 0.35, bridges)
-          .forEach(wg => wireGroup.add(new THREE.LineSegments(wg, wireMat)));
       });
 
       // Entrance corridor: a hall guided by a deep door mold (§3.6.7-3.6.8).
@@ -365,18 +370,58 @@
           const m = new THREE.Mesh(tg, bagMaterial(i % 2));
           m.castShadow = true; bagGroup.add(m);
         }
-        // Barbed wire in the bedding joint (top of course), laid along the bag
-        // CENTRELINE on both long edges of the vault — its real position.
+        // Barbed wire in the bedding joint (top of course): the §3.6.6 DOUBLE
+        // strand astride the bag centreline on both long edges of the vault.
         const wy = c.y + ch / 200 + 0.004;
         const nZ = Math.max(2, Math.round(L / 0.2));
+        const vSp = Math.min(0.05, Math.max(0.015, (bw / 100 - ch / 100) / 4));
         [-1, 1].forEach(side => {
-          const pts = [];
-          for (let k = 0; k <= nZ; k++) {
-            pts.push(new THREE.Vector3(side * c.r, wy, -L / 2 + (k / nZ) * L));
-          }
-          const wg = SuperAdobe.barbedStrand(pts, 0.2, (ch / 100) * 0.35);
-          if (wg) wireGroup.add(new THREE.LineSegments(wg, wireMat));
+          [-vSp, vSp].forEach(off => {
+            const pts = [];
+            for (let k = 0; k <= nZ; k++) {
+              pts.push(new THREE.Vector3(side * (c.r + off), wy, -L / 2 + (k / nZ) * L));
+            }
+            const wg = SuperAdobe.barbedStrand(pts, 0.2, (ch / 100) * 0.35);
+            if (wg) wireGroup.add(new THREE.LineSegments(wg, wireMat));
+          });
         });
+      });
+    }
+
+    // Base buttress (§3.6.8–3.6.9): an extra sack wall around the dome's base,
+    // to 50 cm above the springline, sewn to the base rings. Cut where a door
+    // (plus its corridor walls) passes through, and at neighbouring domes.
+    if (s.type === 'dome' && s.buttress) {
+      const profile = s.profile || [];
+      const totalH = profile.length ? profile[profile.length - 1].y : 2;
+      const doorOps = SuperAdobe.computeOpenings(s, totalH).filter(o => o.kind === 'door');
+      const bCourses = SuperAdobe.buttressCourses(profile, bw, ch, s.baseWallHeight);
+      // In Step view the buttress rises together with the dome courses.
+      const bMaxY = (renderLevel === 2 && opts.stepMode && profile.length)
+        ? profile[Math.min(opts.stepCourse, profile.length - 1)].y
+        : Infinity;
+      const bSpread = Math.min(0.05, Math.max(0.015, (bw / 100 - ch / 100) / 4));
+      bCourses.forEach((c, i) => {
+        if (c.y > bMaxY + 1e-6) return;
+        const gaps = [];
+        doorOps.forEach(d => {
+          const half = d.width / 2 + (bw / 100) * 1.5;   // clear the corridor walls
+          gaps.push([d.angle - half / c.r, d.angle + half / c.r]);
+        });
+        const ig = SuperAdobe.intersectionGaps(s, others, c.y, c.r);
+        if (ig === null) return;
+        const allGaps = gaps.concat(ig);
+        SuperAdobe.buildCourseGeometries(c.y, c.r, bw, ch, allGaps, i).forEach(g => {
+          const m = new THREE.Mesh(g, bagMaterial(i % 2));
+          m.castShadow = true; m.receiveShadow = true;
+          bagGroup.add(m);
+        });
+        // §3.6.6 double wire on the buttress courses too (they are sewn on).
+        const nextB = bCourses[i + 1];
+        if (nextB) {
+          SuperAdobe.buildWireGeometries(c.y + ch / 200 + 0.004, nextB.r, allGaps, (ch / 100) * 0.35, null, bSpread)
+            .forEach(wg => wireGroup.add(new THREE.LineSegments(wg, wireMat)));
+        }
       });
     }
 

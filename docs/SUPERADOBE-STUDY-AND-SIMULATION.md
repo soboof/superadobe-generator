@@ -181,16 +181,21 @@ benchmarks:
 
 | Concept (source) | In the app? | Where / notes |
 |---|---|---|
-| Revolved offset-arc meridian `x(h)` ([P]1″) | ✅ | `domeProfile` in superadobe.js |
-| Total height `H` ([P]3′) | ✅ | `domeHeight` |
-| Geometric factor `F` ([P]8′) | ⚠️ **partial** | implied by profile but never computed/shown → **added in Simulation** |
+| Revolved offset-arc meridian `x(h)` ([P]1″) | ✅ | `domeProfile` in superadobe.js — rings only on the `hs` grid; no synthetic capstone ring; achieved skylight radius reported (t_r is a lower bound, "t_min") |
+| Total height `H` ([P]3′) | ✅ | built height = top of last laid course (theoretical `domeHeight` kept for reference) |
+| Geometric factor `F` ([P]8′) | ✅ | `coherency` — live green/amber/red bar in Levels 1–2; `domeProfile` **refuses floating courses** (step > L ⇒ F ≤ 0) and truncates with a warning; also per-ring in Simulation |
 | Habitable area `A`, volume `V` | ✅ (V via material calc) | calculator.js |
 | Table 3-1 sack sizing | ✅ | `recommendedSack` + hint |
-| Quadrant opening rule, ≥1.25 m wall | ✅ | `validateOpenings` |
+| Quadrant opening rule, ≥1.25 m wall | ✅ | `validateOpenings` — wall arc evaluated **at opening heights** on `x(h)`, worst over the shared height band |
+| Openings on the course grid, door threshold (§3.6.7) | ✅ | `computeOpenings` snaps sills/springlines to course boundaries; threshold courses (mold at 0.2–0.6 m) run under doors |
+| Double barbed-wire line toward the interior (§3.6.6) | ✅ | `buildWireGeometries` — two strands astride the **next** ring's centreline, none on the top ring; ×2 in calculator; section view draws dots |
+| Continuous-sack quantities + labour rate (§3.6.6/§3.6.12) | ✅ | one sack per ring cut to perimeter + 1.25 m; time from ~0.1875 m laid sack per man-hour |
+| Conventional relation `rr = 2·rb + sw` (§3.6.9 #6) | ✅ | preset button + "conventional" shape label |
+| Base buttress to springline + 50 cm (§3.6.8–9) | ✅ | `buttressCourses` + Foundation checkbox; geometry, wire and materials included |
 | Apse / intersection sewing, 45° ideal apse | ✅ | `intersectionGaps`, `idealApse` |
 | Door molds / corridors, head curves | ✅ | `buildCorridorGeometries` |
 | Plane-slice "spin + boolean" engine | ✅ | `sliceSpans`, `buildShellGeometry` |
-| Material quantities, time, eco | ✅ | calculator.js |
+| Material quantities, time, eco | ✅ | calculator.js — openings carved from every ring (eq. 10′) via the per-course solid fractions |
 | **Ring-by-ring forces & stresses (ch. 6)** | ❌ → ✅ **NEW** | `simulation.js` |
 | **13 limit-state safety checks (§6.3)** | ❌ → ✅ **NEW** | `simulation.js` |
 | **FEA-validated stress envelope, μ, E, den** | ❌ → ✅ **NEW** | sim defaults + benchmarks |
@@ -252,9 +257,11 @@ The openings (doors/windows) are governed by two thesis sections. Below is the v
 substance and the exact limits the app now applies.
 
 ### H.1 §3.6.7 — Mold placement, sizes and sills
-- **Mold heights / sills.** The door mold is set after the wall reaches **0.2–0.6 m** (a low
-  threshold; the doorway itself runs from the floor). The window mold (and therefore the window
-  **sill**) sits at **1.0–1.5 m** above ground.
+- **Mold heights / sills.** The door mold is set after the wall reaches **0.2–0.6 m** — so the
+  base rings run **continuously under the doorway** as a raised threshold. The app builds this
+  threshold in whole courses (smallest multiple of the course height ≥ 0.2 m) and measures the
+  door's clear height from the mold base. The window mold (and therefore the window **sill**)
+  sits at **1.0–1.5 m** above ground, snapped to a course boundary (molds rest on finished rings).
 - **Ideal sizes.** *Ideal door = 1.5 m wide × 1.8 m high. Ideal window = 1.0 m wide × 1.5 m high.*
   Wider/taller needs a lintel or buttress.
 - **Self-supporting arch.** When 2–3 courses remain below the mold top, the sack is carried
@@ -291,12 +298,13 @@ substance and the exact limits the app now applies.
 | Rule (source) | Enforcement |
 |---|---|
 | ≤ 4 openings, one/quadrant (§3.6.9) | `computeOpenings` builds at most 4, placed at facing + k·90°; >4 ⇒ warning |
-| Wall arc ≥ 1.25 m (§3.6.9) | `validateOpenings` finds the worst adjacent gap; if < 1.25 m it warns **and suggests the diameter** that would satisfy it |
-| Ideal door 1.5 × 1.8 m (§3.6.7) | door width **capped at 1.5 m** and clear height at **1.8 m** in `computeOpenings`; over-wide ⇒ warning |
-| Ideal window 1.0 × 1.5 m, sill 1.0–1.5 m (§3.6.7) | windows fixed to **1.0 × 1.5 m** with sill clamped to **~1.0 m** |
+| Wall arc ≥ 1.25 m (§3.6.9) | `validateOpenings` samples the arc **at the heights where both openings are open**, using the ring radius `x(h)` there (worst case is up at the openings, not the base); if < 1.25 m it warns **and suggests the diameter** that would satisfy it |
+| Mold on a finished ring, threshold 0.2–0.6 m (§3.6.7) | all sills/springlines **snap to course boundaries**; doors get whole threshold courses that run under the opening; boundary-touching courses are never cut |
+| Ideal door 1.5 × 1.8 m (§3.6.7) | door width **capped at 1.5 m**; **1.8 m clear height measured from the mold base** (threshold); head bag rests on a completed course |
+| Ideal window 1.0 × 1.5 m, sill 1.0–1.5 m (§3.6.7) | windows fixed to **1.0 × 1.5 m** with sill clamped to **~1.0 m**, snapped up to the next course boundary |
 | Opening fits the dome — sweep ≤ 124° (§3.6.7) | warns if `width / R` exceeds 124° (opening too wide for that dome) |
 | Dome tall enough for a 1.8 m door (§3.6.7) | warns if `H·0.82 < 1.8 m`, reporting the limited clear height |
-| Ø > 1.5 m → buttresses (§3.6.9) | advisory hint when no adjoining dome/apse buttresses it |
+| Ø > 1.5 m → buttresses (§3.6.9) | advisory hint when no adjoining dome/apse buttresses it **and** the "Base buttress" checkbox is off; ticking it builds the real element (`buttressCourses`: sack wall to springline + 50 cm, double-wired, in the material totals) |
 | Table 3-1 sack size (§3.6.9) | `recommendedSack` hint, off-spec flagged |
 
 `SuperAdobe.maxDoorWidth(p, baseRadius)` returns the widest door that still leaves ≥ 1.25 m walls

@@ -33,6 +33,7 @@
       doorArcHeight: 0.4,          // m, used only for 'arc' head
       corridor: true,        // entrance hall guided by a deep door mold
       corridorLen: 1.2,      // m
+      buttress: false,       // §3.6.8–9 extra sack wall to 50 cm over springline
       x: 0,
       z: 0,
       rotDeg: 0,
@@ -128,6 +129,11 @@
   document.getElementById('chk-corridor').addEventListener('change', e => {
     selected().corridor = e.target.checked;
     document.getElementById('row-corrlen').style.display = e.target.checked ? '' : 'none';
+    update();
+  });
+
+  document.getElementById('chk-buttress').addEventListener('change', e => {
+    selected().buttress = e.target.checked;
     update();
   });
 
@@ -326,6 +332,7 @@
     document.getElementById('chk-corridor').checked = !!s.corridor;
     document.getElementById('row-corrlen').style.display = s.corridor ? '' : 'none';
     document.getElementById('chk-closedtop').checked = !!s.closedTop;
+    document.getElementById('chk-buttress').checked = !!s.buttress;
     const hs = s.doorHeadShape || 'semicircle';
     document.querySelectorAll('#door-head-shape .radio-card').forEach(c =>
       c.classList.toggle('active', c.dataset.headshape === hs));
@@ -344,10 +351,26 @@
     updatePointinessLabel();
   }
 
+  // Conventional dome (§3.6.9 Fig. 3-28): the vertical compass sits on the
+  // outer edge of the base sack → rr = 2rb + sw, i.e. arch offset a = rb + sw.
+  // In pointiness terms (a = p/100 · rb): p = 100·(1 + sw/rb).
+  function conventionalPointiness(s) {
+    const rb = Math.max(0.1, s.diameter / 2);
+    return Math.round(100 * (1 + (s.bagWidthCm / 100) / rb));
+  }
+  document.getElementById('btn-conventional').addEventListener('click', () => {
+    const s = selected();
+    s.pointiness = Math.min(150, conventionalPointiness(s));
+    setVal('s-pointiness', 'n-pointiness', s.pointiness);
+    update();
+  });
+
   function updatePointinessLabel() {
-    const p = selected().pointiness;
+    const s = selected();
+    const p = s.pointiness;
     let txt = 'pointed';
-    if (p <= 10) txt = 'shallow';
+    if (s.type !== 'cylinder' && Math.abs(p - conventionalPointiness(s)) <= 3) txt = 'conventional — rr = 2rb + sw';
+    else if (p <= 10) txt = 'shallow';
     else if (p <= 60) txt = 'rounded';
     else if (p <= 115) txt = 'pointed';
     else txt = 'sharp';
@@ -358,10 +381,10 @@
   function renderStructureList() {
     const list = document.getElementById('structure-list');
     list.innerHTML = structures.map(s => {
-      const h = SuperAdobe.domeHeight({
-        baseRadius: s.diameter / 2, archOffset: (s.pointiness / 100) * (s.diameter / 2),
-        skylightRadius: s.skylightRadius, baseWallHeight: s.baseWallHeight,
-      });
+      // Built height = top of the last laid course (the profile ends on the
+      // hs grid, so the theoretical arc height can overstate it).
+      const prof = s.type === 'vault' ? (s.profile.half || []) : (s.profile || []);
+      const h = prof.length ? prof[prof.length - 1].y + (s.courseHeightCm || 12) / 200 : 0;
       const meta = s.type === 'dome'
         ? `Ø${s.diameter}m · ${h.toFixed(1)}m tall`
         : (s.type === 'cylinder' ? `Ø${s.diameter}m · ${s.wallHeight}m wall` : `Ø${s.diameter}m · ${s.vaultLength}m long`);
@@ -422,13 +445,20 @@
 
   function paramsFor(s) {
     // Per-course built fraction: rings are cut where they enter a neighbor's
-    // wall (§3.6.8), so material quantities shrink accordingly.
+    // wall (§3.6.8) AND at door/window openings (paper eq. 10' subtracts the
+    // opening arcs from every ring length), so quantities shrink accordingly.
     const others = structures.filter(o => o.id !== s.id);
     let courseSolidFrac = null;
     if (s.type === 'dome' || s.type === 'cylinder') {
-      courseSolidFrac = s.profile.map(c => {
-        const gaps = SuperAdobe.intersectionGaps(s, others, c.y, c.r);
-        return SuperAdobe.solidFraction(gaps);
+      const prof = s.profile || [];
+      const H = prof.length ? prof[prof.length - 1].y : 0;
+      const openings = SuperAdobe.computeOpenings(s, H);
+      const chM = (s.courseHeightCm || 12) / 100;
+      courseSolidFrac = prof.map((c, i) => {
+        const ig = SuperAdobe.intersectionGaps(s, others, c.y, c.r);
+        if (ig === null) return 0;
+        const og = SuperAdobe.openingGaps(c.y, c.r, openings, i, chM);
+        return SuperAdobe.solidFraction(og.concat(ig));
       });
     }
     return Object.assign({}, s, shared, { innerR: s.diameter / 2, courseSolidFrac });
@@ -450,7 +480,7 @@
     });
 
     const warnings = [
-      ...SuperAdobe.validateOpenings(s, s.diameter / 2, { domeHeight, hasButtress }),
+      ...SuperAdobe.validateOpenings(s, s.diameter / 2, { domeHeight, hasButtress, profile: prof }),
       ...SuperAdobe.validateDoorCollisions(s, others),
     ];
     document.getElementById('opening-warnings').innerHTML = warnings.map(w =>
@@ -460,18 +490,64 @@
     const maxDoor = SuperAdobe.maxDoorWidth(s, s.diameter / 2);
     const count = (s.doors || 0) + (s.windows || 0);
     // §3.6.9 buttress advisory (dome-level, not an opening violation).
-    const needsButtress = s.diameter > SuperAdobe.OPENING_RULES.buttressDiameter && !hasButtress;
+    const needsButtress = s.type === 'dome'
+      && s.diameter > SuperAdobe.OPENING_RULES.buttressDiameter
+      && !hasButtress && !s.buttress;
     document.getElementById('opening-hint').innerHTML =
       `§3.6.7/9: ideal door <b>1.5×1.8 m</b>, window <b>1.0×1.5 m</b>. ` +
       `Up to 4 openings — one per quadrant, ≥ 1.25 m wall between. ` +
       (count > 0 ? `Widest door for this layout: <b>${maxDoor.toFixed(2)} m</b>. ` : '') +
-      (needsButtress ? `<span class="warn-text">§3.6.9: Ø > 1.5 m → buttresses/apses advised (“+ Ideal Apse”).</span>` : '');
+      (needsButtress ? `<span class="warn-text">§3.6.9: Ø > 1.5 m must be buttressed — tick “Base buttress” (Foundation) or add an apse (“+ Ideal Apse”).</span>` : '');
 
     const rec = SuperAdobe.recommendedSack(s.diameter);
     const ok = Math.abs(s.bagWidthCm - rec.sw) <= 5;
     document.getElementById('bag-hint').innerHTML =
       `Table 3-1 recommends <b>${rec.sw} × ${rec.hs} cm</b> sacks for Ø ${s.diameter} m` +
       (ok ? '' : ` — <span class="warn-text">current ${s.bagWidthCm} cm is off-spec</span>`);
+  }
+
+  // ── Geometric coherency F (paper eq. 8′) — live worst-ring bearing ────────
+  function updateCoherency() {
+    const s = selected();
+    const bar = document.getElementById('fbar');
+    const val = document.getElementById('fbar-val');
+    const hint = document.getElementById('coherency-hint');
+    const skyHint = document.getElementById('skylight-hint');
+    if (!bar) return;
+
+    const prof = s.type === 'vault' ? (s.profile.half || []) : (s.profile || []);
+    if (s.type === 'cylinder' || !prof.length) {
+      bar.style.width = '100%'; bar.className = 'fbar';
+      val.textContent = '—'; val.className = 'fbar-val';
+      if (hint) hint.textContent = 'Straight walls — every course rests fully on the one below.';
+      if (skyHint) skyHint.textContent = '';
+      return;
+    }
+
+    const c = SuperAdobe.coherency(prof, s.bagWidthCm, s.courseHeightCm);
+    const cls = c.minF >= 0.5 ? '' : (c.minF >= 0.25 ? 'warn' : 'fail');
+    bar.style.width = `${Math.round(c.minF * 100)}%`;
+    bar.className = 'fbar' + (cls ? ' ' + cls : '');
+    val.textContent = 'F = ' + c.minF.toFixed(2);
+    val.className = 'fbar-val' + (cls ? ' ' + cls : '');
+    if (hint) hint.innerHTML =
+      `Worst pair: courses ${c.atCourse}–${c.atCourse + 1} — ${Math.round(c.minF * 100)}% of the flat bag width ` +
+      `(L = ${(c.L * 100).toFixed(0)} cm) rests on the ring below. ` +
+      (c.minF >= 0.5
+        ? 'Solid (the paper suggests F ≥ ¼–½).'
+        : c.minF >= 0.25
+          ? '<span class="warn-text">Low — the paper suggests F ≥ ¼. Raise pointiness, widen the skylight, or use wider bags.</span>'
+          : '<span class="warn-text">Very low — top rings barely rest on the one below (paper Figs 9–11, rigid-body risk). Raise pointiness, widen the skylight, or use wider bags.</span>');
+
+    if (skyHint) {
+      if (s.type === 'dome') {
+        const want = s.closedTop ? 0.06 : s.skylightRadius;
+        skyHint.innerHTML = c.truncated
+          ? `<span class="warn-text">⚠ Courses above ${prof[prof.length - 1].y.toFixed(2)} m would float (inward step &gt; flat bag width) — ` +
+            `the dome stops with skylight r = ${c.achievedRt.toFixed(2)} m (requested ${want.toFixed(2)} m).</span>`
+          : `Achieved skylight r = ${c.achievedRt.toFixed(2)} m at the top ring (tr is a lower bound — thesis “tmin”).`;
+      } else skyHint.textContent = '';
+    }
   }
 
   function updateFoundationHint() {
@@ -500,6 +576,7 @@
     updateFoundationHint();
     renderStructureList();
     updateRuleHints();
+    updateCoherency();
 
     // Simulation (Stage 3): analyse first so the shell paints fresh colours.
     const inSim = window.AppLevels && window.AppLevels.level === 3;
@@ -536,17 +613,18 @@
 
   // ── Render complex totals (right panel) ────────────────────────────────────
   function updateComplexResults(r) {
-    document.querySelector('#stat-bags .stat-val').textContent = r.totalBagCount.toLocaleString();
+    document.querySelector('#stat-bags .stat-val').textContent = r.totalBagLengthM.toLocaleString();
     document.querySelector('#stat-wire .stat-val').textContent = r.totalWireM.toLocaleString();
     document.querySelector('#stat-fill .stat-val').textContent = r.totalFillM3.toFixed(1);
     document.querySelector('#stat-plaster .stat-val').textContent = r.plasterOuterM2.toFixed(0);
 
     const tbody = document.getElementById('detail-tbody');
     const rows = [
-      ['Earthbag tubes (1m)', r.totalBagCount, 'bags'],
+      ['Continuous sack (cut per ring)', r.totalBagLengthM, 'm'],
+      ['Sack cuts (rings/runs)', r.totalBagCount, 'cuts'],
       ['Poly tube rolls (100m)', r.bagRolls100m, 'rolls'],
-      ['Foundation bags', r.foundationBags, 'bags'],
-      ['Barbed wire (4-pt)', r.totalWireM, 'm'],
+      ['Foundation sack (trench rows)', r.foundationBags, 'm'],
+      ['Barbed wire (double strand)', r.totalWireM, 'm'],
       ['Wire rolls (400m)', r.wireRollsNeeded, 'rolls'],
       ['Fill material (loose)', r.fillLooseM3, 'm³'],
       ['Fill material (compacted)', r.totalFillM3, 'm³'],
@@ -594,7 +672,7 @@
       ['Type', s.type],
       ['Height', `${h.toFixed(2)} m`],
       ['Courses', prof.length],
-      ['Earthbags', r.totalBagCount.toLocaleString()],
+      ['Sack length', `${r.totalBagLengthM.toLocaleString()} m`],
       ['Fill (compacted)', `${r.totalFillM3.toFixed(1)} m³`],
       ['Floor area', `${r.floorAreaM2.toFixed(1)} m²`],
       ['Position', `${s.x}, ${s.z} m`],
@@ -625,8 +703,8 @@
       lines.push('');
     });
     lines.push('── COMPLEX MATERIALS (all structures) ──────────');
-    lines.push(`Earthbags       : ${r.totalBagCount} bags (${r.bagRolls100m} rolls × 100m)`);
-    lines.push(`Barbed wire     : ${r.totalWireM} m (${r.wireRollsNeeded} rolls × 400m)`);
+    lines.push(`Continuous sack : ${r.totalBagLengthM} m in ${r.totalBagCount} cuts (${r.bagRolls100m} rolls × 100m)`);
+    lines.push(`Barbed wire     : ${r.totalWireM} m double strand (${r.wireRollsNeeded} rolls × 400m)`);
     lines.push(`Fill material   : ${r.fillLooseM3} m³ loose / ${r.totalFillM3} m³ compacted`);
     if (r.cementBags50kg > 0) lines.push(`Cement stabiliz.: ${r.cementBags50kg} bags × 50kg`);
     lines.push(`Foundation fill : ${r.gravelM3} m³ gravel`);
@@ -989,6 +1067,8 @@
   setupLandScan();
   syncSimControls();
   syncControlsFromSelected();
-  requestAnimationFrame(() => _doUpdate());
+  // setTimeout, not requestAnimationFrame: rAF never fires in a hidden tab,
+  // which would leave the first build (status bar, results, scene) unrun.
+  setTimeout(_doUpdate, 0);
 
 })();

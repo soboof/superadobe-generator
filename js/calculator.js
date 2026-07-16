@@ -39,9 +39,8 @@ const Calculator = (() => {
       ? (bw - ch) * ch + Math.PI * (ch / 2) ** 2
       : (Math.PI / 4) * bw * ch;
 
-    // ── Bag length: standard tube bags are 50–60m rolls, cut to ~1m lengths ──
-    const bagLengthM = 1.0; // 1 m standard cut
-
+    // Bags are CONTINUOUS poly tube (§3.6.6): one sack per ring, cut to the
+    // ring perimeter + 1.25 m. totalBagCount counts the cuts, not 1-m units.
     let totalBagCount = 0;
     let totalBagLengthM = 0;
     let totalWireM = 0;
@@ -59,11 +58,13 @@ const Calculator = (() => {
         const frac = fracAt(i);
         if (frac <= 0) return;
         const circ = 2 * Math.PI * r * frac;
-        const bagsThisCourse = Math.ceil(circ / bw);
-        const actualBagLen = circ / Math.max(1, bagsThisCourse);
-        totalBagCount += bagsThisCourse;
-        totalBagLengthM += circ;
-        totalWireM += circ + 0.5; // overlap at ends
+        // One continuous sack per ring, cut to the perimeter + 1.25 m on the
+        // safe side (§3.6.6: "overestimating by 1–1.5 m").
+        totalBagCount += 1;
+        totalBagLengthM += circ + 1.25;
+        // §3.6.6: a DOUBLE line of barbed wire on every course except the top
+        // one (nothing rests on it), each strand overcut like the sack.
+        if (i < profile.length - 1) totalWireM += 2 * (circ + 1.25);
         // Fill: cross-section of bag ≈ ellipse bw × ch
         totalFillM3 += bagSectionArea * circ;
         // Outer surface area (frustum strip between courses)
@@ -83,10 +84,9 @@ const Calculator = (() => {
         const frac = fracAt(i);
         if (frac <= 0) return;
         const circ = 2 * Math.PI * r * frac;
-        const bagsThisCourse = Math.ceil(circ / bw);
-        totalBagCount += bagsThisCourse;
-        totalBagLengthM += circ;
-        totalWireM += circ + 0.5;
+        totalBagCount += 1;                       // one continuous sack per ring
+        totalBagLengthM += circ + 1.25;
+        if (i < profile.length - 1) totalWireM += 2 * (circ + 1.25);  // §3.6.6 double line
         totalFillM3 += bagSectionArea * circ;
       });
       surfaceAreaOuterM2 = 2 * Math.PI * (innerR + bw) * (profile.length * ch);
@@ -98,18 +98,33 @@ const Calculator = (() => {
     if (type === 'dome' && params.corridor && doors > 0) {
       const corrLen = params.corridorLen || 1.2;
       const w = doorWidthCm / 100;
-      const wallH = 1.85;                       // walls to the arch springline
+      // Walls to the arch springline = threshold courses (§3.6.7 mold at
+      // 0.2–0.6 m) + the ideal 1.8 m clear height.
+      const wallH = Math.ceil(0.2 / ch) * ch + 1.8;
       const wallCourses = Math.ceil(wallH / ch);
       const archArc = Math.PI * (w / 2 + bw / 2);
       const archSlices = Math.ceil(corrLen / bw);
       const corrBagLen = doors * (2 * wallCourses * corrLen + archSlices * archArc);
-      totalBagCount += Math.ceil(corrBagLen);
+      totalBagCount += doors * (2 * wallCourses + archSlices);   // one cut per run
       totalBagLengthM += corrBagLen;
-      totalWireM += doors * 2 * wallCourses * corrLen;
+      totalWireM += doors * 2 /*sides*/ * 2 /*double line*/ * wallCourses * corrLen;
       totalFillM3 += bagSectionArea * corrBagLen;
       surfaceAreaOuterM2 += doors * corrLen * (2 * wallH + archArc);
       surfaceAreaInnerM2 += doors * corrLen * (2 * wallH + Math.PI * w / 2);
       floorAreaM2 += doors * corrLen * w;
+    }
+
+    // ── Base buttress (§3.6.8–3.6.9): extra rings to 50 cm over springline ──
+    if (type === 'dome' && params.buttress) {
+      const topY = (params.baseWallHeight || 0) + 0.5;
+      const rBut = innerR + bw * 1.5;               // hugging the dome's outer face
+      for (let y = ch / 2; y <= topY + 1e-6; y += ch) {
+        const circ = 2 * Math.PI * rBut;
+        totalBagCount += 1;
+        totalBagLengthM += circ + 1.25;
+        totalWireM += 2 * (circ + 1.25);            // sewn on with double wire
+        totalFillM3 += bagSectionArea * circ;
+      }
     }
 
     if (type === 'vault') {
@@ -132,20 +147,18 @@ const Calculator = (() => {
     }
 
     // ── Subtract openings (ideal door 1.5×1.8, window 1.0×1.5 — §3.6.7) ───
+    // For DOMES the per-course solid fractions already carve the openings out
+    // of every ring (paper eq. 10'), so bags/fill/wire/surfaces are net.
+    // Cylinders and vaults use closed-form surface areas — subtract there.
     const builtOpenings = Math.min(4, doors + windows); // quadrant rule
     const builtDoors = Math.min(doors, builtOpenings);
     const builtWindows = builtOpenings - builtDoors;
-    const doorH = 1.85;
-    const winH = 1.5;
-    const doorArea = builtDoors * (doorWidthCm / 100) * doorH;
-    const winArea = builtWindows * 1.0 * winH;
-    const openingArea = doorArea + winArea;
-    surfaceAreaInnerM2 = Math.max(0, surfaceAreaInnerM2 - openingArea);
-    surfaceAreaOuterM2 = Math.max(0, surfaceAreaOuterM2 - openingArea);
-
-    // Opening bag deductions (rough)
-    const openingBagDeduction = Math.floor(openingArea / (bw * ch) * 0.85);
-    totalBagCount = Math.max(0, totalBagCount - openingBagDeduction);
+    if (type !== 'dome') {
+      const doorArea = builtDoors * (doorWidthCm / 100) * 1.85;
+      const winArea = builtWindows * 1.0 * 1.5;
+      surfaceAreaInnerM2 = Math.max(0, surfaceAreaInnerM2 - doorArea - winArea);
+      surfaceAreaOuterM2 = Math.max(0, surfaceAreaOuterM2 - doorArea - winArea);
+    }
 
     // ── Plaster areas ──────────────────────────────────────────────────────
     // 3 coats: scratch, brown, finish — total ~3cm
@@ -163,12 +176,13 @@ const Calculator = (() => {
     const foundVolM3 = foundCirc * 1.0 * 1.0;
     const gravelM3 = foundVolM3 * 0.7;
     // Foundation bag courses = user-set stem-wall rows (min 2 for the gravel
-    // trench base bags placed at grade before building begins).
+    // trench base bags placed at grade before building begins). Continuous
+    // sack, one ring per row.
     const foundRows = Math.max(2, Math.round(params.foundationRows || 0));
-    const foundBagsCount = Math.ceil(foundCirc / bw) * foundRows;
+    const foundSackM = Math.round(foundRows * (foundCirc + 1.25));
 
     // ── Wire ──────────────────────────────────────────────────────────────
-    // 4-point barbed wire, one strand between each course, +10% waste
+    // Barbed wire, DOUBLE strand between each course (§3.6.6), +10% waste
     const wireRollM = 400; // standard roll = 400m
     const wireRollsNeeded = Math.ceil(totalWireM * 1.1 / wireRollM);
 
@@ -185,9 +199,12 @@ const Calculator = (() => {
     const bagRolls100m = Math.ceil(totalBagLengthM * 1.05 / 100);
 
     // ── Time estimate ──────────────────────────────────────────────────────
+    // Thesis §3.6.12: ~0.1875 m of laid sack per MAN-HOUR (mix, fill, place,
+    // tamp, wire — a practised crew; 250 m of sack ≈ 1500 man-hours).
     const skillFactor = { novice: 0.45, intermediate: 0.7, expert: 1.0 }[skillLevel] || 0.7;
-    const bagsPerWorkerPerDay = 25 * skillFactor; // bags filled, tamped, placed
-    const totalBagDays = totalBagCount / (workers * bagsPerWorkerPerDay);
+    const sackMPerManHour = 0.1875 * skillFactor;
+    const hpd = hoursPerDay || 8;
+    const totalBagDays = totalBagLengthM / (sackMPerManHour * workers * hpd);
 
     const foundationDays = Math.ceil(3 / workers * (1 / skillFactor));
     const plasterDays = Math.ceil((plasterOuterM2 + plasterInnerM2) / (workers * 20 * skillFactor));
@@ -213,7 +230,7 @@ const Calculator = (() => {
       totalBagCount,
       totalBagLengthM: Math.round(totalBagLengthM),
       bagRolls100m,
-      foundationBags: foundBagsCount,
+      foundationBags: foundSackM,   // metres of continuous sack in the trench rows
 
       // Wire
       totalWireM: Math.round(totalWireM),
@@ -280,11 +297,12 @@ const Calculator = (() => {
     const plasterOuterKg = Math.round(plasterOuterM2 * 45);
     const plasterInnerKg = Math.round(plasterInnerM2 * 40);
 
-    // Time: one crew builds everything sequentially
+    // Time: one crew builds everything sequentially — thesis §3.6.12 rate
+    // (~0.1875 m of laid sack per man-hour for a practised crew).
     const skillFactor = { novice: 0.45, intermediate: 0.7, expert: 1.0 }[shared.skillLevel] || 0.7;
-    const bagsPerWorkerPerDay = 25 * skillFactor;
     const workers = shared.workers || 3;
-    const constructionDays = Math.ceil(totalBagCount / (workers * bagsPerWorkerPerDay));
+    const hpd = shared.hoursPerDay || 8;
+    const constructionDays = Math.ceil(totalBagLengthM / (0.1875 * skillFactor * workers * hpd));
     const foundationDays = Math.ceil(structureCount * 3 / workers * (1 / skillFactor));
     const plasterDays = Math.ceil((plasterOuterM2 + plasterInnerM2) / (workers * 20 * skillFactor));
     const totalOpenings = sum('openingsCount');

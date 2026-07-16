@@ -44,6 +44,7 @@ const SuperAdobe = (() => {
     const h1   = Math.max(0, opts.baseWallHeight || 0);
 
     const Rarc = Rb + a;
+    const Lflat = Math.max(0.01, sw - hs);  // flat bearing width of the stadium
     const courses = [];
 
     let y = hs / 2;
@@ -53,20 +54,50 @@ const SuperAdobe = (() => {
       y += hs;
     }
 
+    // Rings exist ONLY on the hs grid (§3.6.6: each course is one bag height
+    // above the last — there is no ring at an arbitrary height). The profile
+    // ends at the last grid course that (a) still lies outside the requested
+    // skylight radius and (b) actually RESTS on the course below: a course
+    // whose inward step exceeds the flat bearing width Lflat would float in
+    // the air (paper eq. 8' with F ≤ 0, Figs 9–11), so it is refused. The
+    // ACHIEVED skylight radius is the last course's inner radius — tr is a
+    // lower bound (the thesis calls it "tmin"), not a ring of its own.
+    let truncated = false;
     while (true) {
       const dh = y - h1;
       const inside = Rarc * Rarc - dh * dh;
       if (inside <= 0) break;
       const xInner = Math.sqrt(inside) - a;
       if (xInner <= Rt) break;
+      const prev = courses[courses.length - 1];
+      if (prev && (prev.inner - xInner) > Lflat) { truncated = true; break; }
       courses.push({ y, r: xInner + sw / 2, inner: Math.max(0, xInner) });
       y += hs;
     }
 
-    const Htop = h1 + Math.sqrt(Math.max(0, Rarc * Rarc - (Rt + a) * (Rt + a)));
-    courses.push({ y: Htop, r: Rt + sw / 2, inner: Rt, top: true });
+    if (!courses.length) courses.push({ y: hs / 2, r: Rb + sw / 2, inner: Rb });
+    courses.truncated = truncated;   // stopped short: next course would float
 
     return courses;
+  }
+
+  // ─── Geometric coherency F (paper eq. 8', generalised to every pair) ──────
+  // For each pair of consecutive rings, F = (L − step) / L: the fraction of the
+  // flat bag width L = sw − hs still resting on the ring below (step = inward
+  // shift of the inner faces). Returns the worst pair — the paper's
+  // "geometric coherency" of the dome — plus whether the profile stopped short
+  // of the requested skylight radius because further courses would float.
+  function coherency(profile, sackWidthCm, courseHeightCm) {
+    const sw = sackWidthCm / 100, hs = courseHeightCm / 100;
+    const L = Math.max(0.01, sw - hs);
+    let minF = 1, atCourse = 0;
+    for (let i = 1; i < profile.length; i++) {
+      const step = profile[i - 1].inner - profile[i].inner;
+      const F = Math.max(0, Math.min(1, (L - step) / L));
+      if (F < minF) { minF = F; atCourse = i; }
+    }
+    const achievedRt = profile.length ? profile[profile.length - 1].inner : 0;
+    return { minF, atCourse, L, achievedRt, truncated: !!profile.truncated };
   }
 
   function domeHeight(opts) {
@@ -135,11 +166,24 @@ const SuperAdobe = (() => {
     const facing = p.doorFacingRad != null ? p.doorFacingRad : 0;
     const total = Math.min(OPENING_RULES.maxOpenings, (p.doors || 0) + (p.windows || 0));
 
+    // §3.6.7: molds sit ON TOP of a finished ring, so every sill and
+    // springline must land on a course boundary — a course is either laid past
+    // a mold or stopped at it, never cut to a fraction of its height.
+    const ch = Math.max(0.04, (p.courseHeightCm || 12) / 100);
+    const snapUp = v => Math.ceil(v / ch - 1e-9) * ch;
+    const snapDn = v => Math.floor(v / ch + 1e-9) * ch;
+
+    // Door: the mold is set once the wall reaches 0.2–0.6 m (§3.6.7, Fig 3-18),
+    // so the base courses run CONTINUOUSLY under the doorway — a raised
+    // threshold of whole courses, the strongest tie in the structure.
+    const doorSill = snapUp(0.2);
     // §3.6.7 ideal geometry, clamped so a short dome still closes above the head.
-    const clearH = Math.min(OPENING_RULES.idealDoor.h, totalHeight * 0.82); // door clear height, ideal 1.8 m
+    const clearH = Math.max(2 * ch,
+      Math.min(OPENING_RULES.idealDoor.h, totalHeight * 0.82 - doorSill)); // ideal 1.8 m above the mold base
+    const doorSpring = snapUp(doorSill + clearH);   // head bag rests on a full course
     const winH = OPENING_RULES.idealWindow.h;                                // 1.5 m
-    const winSill = Math.min(OPENING_RULES.windowSill[0], totalHeight * 0.32); // ideal ~1.0 m sill
-    const winTop = Math.min(winSill + winH, totalHeight * 0.82);
+    const winSill = snapUp(Math.min(OPENING_RULES.windowSill[0], totalHeight * 0.32)); // ideal ~1.0 m sill
+    const winTop = Math.max(winSill + ch, snapDn(Math.min(winSill + winH, totalHeight * 0.82)));
 
     // Door head shape determines how the arch rises above the clear height.
     const headShape = p.doorHeadShape || 'flat';
@@ -154,19 +198,21 @@ const SuperAdobe = (() => {
         kind: 'door',
         angle: facing + slot * Math.PI / 2,
         width: doorW,
-        bottom: 0,
-        springline: clearH,     // where the head curve starts
-        top: clearH + archH,    // topmost point of the opening profile
+        bottom: doorSill,          // threshold courses run under the door
+        springline: doorSpring,    // where the head curve starts
+        top: doorSpring + archH,   // topmost point of the opening profile
         headShape,
         arcHeight: archH,
         bagWidthCm: p.bagWidthCm,  // for the alternating door-jamb seam
         corridor: !!p.corridor,    // jambs pass through the wall → cut the dome
       });
     }
-    // Circular ("oculus") window geometry, when chosen.
+    // Circular ("oculus") window geometry, when chosen. Its mold also rests on
+    // a finished ring, so the circle's BOTTOM lands on a course boundary.
     const winShape = p.windowShape || 'rect';
     const winRad = Math.max(0.2, (p.windowDiameterCm || 80) / 200);   // diameter→radius
-    const winCy = Math.max(winRad + 0.5, Math.min(totalHeight * 0.5, winSill + winRad)); // centre height
+    const rawCy = Math.max(winRad + 0.5, Math.min(totalHeight * 0.5, winSill + winRad));
+    const winCy = Math.max(ch, Math.round((rawCy - winRad) / ch) * ch) + winRad; // centre height
 
     for (let i = 0; slot < total; i++, slot++) {
       if (winShape === 'circle') {
@@ -232,22 +278,70 @@ const SuperAdobe = (() => {
       }
     }
 
-    // §3.6.9 — wall arc between adjacent openings ≥ 1.25 m.
+    // §3.6.9 — wall arc between adjacent openings ≥ 1.25 m. The rings shrink
+    // with height (x(h)), so the arc is SHORTEST up where the openings sit,
+    // not at the base — evaluate over the heights where both are open, on the
+    // wall centreline at that height. Falls back to the base radius when no
+    // profile is passed in `opts.profile`.
+    const prof = opts.profile;
+    const swM = (p.bagWidthCm || 50) / 100;
+    const radiusAt = h => {
+      if (!prof || !prof.length) return R;
+      const rc = outerRadiusAt(prof, swM / 2, h);
+      return rc == null ? R : rc;
+    };
+    // Opening half-width (m) at height h (0 outside the opening).
+    const halfW = (o, h) => {
+      if (h <= (o.bottom || 0) + 1e-9 || h >= o.top - 1e-9) return 0;
+      if (o.shape === 'circle') {
+        const dy = Math.abs(h - o.cy);
+        const sq = o.radius * o.radius - dy * dy;
+        return sq > 0 ? Math.sqrt(sq) : 0;
+      }
+      const sl = o.springline != null ? o.springline : o.top;
+      if (h <= sl) return o.width / 2;
+      const dy = h - sl;
+      if (o.headShape === 'semicircle') {
+        const sq = (o.width / 2) ** 2 - dy * dy;
+        return sq > 0 ? Math.sqrt(sq) : 0;
+      }
+      if (o.headShape === 'arc') {
+        const arcH = o.arcHeight || 0.4, hw = o.width / 2;
+        const Rc = (hw * hw + arcH * arcH) / (2 * arcH);
+        const sq = Rc * Rc - (dy - (arcH - Rc)) * (dy - (arcH - Rc));
+        return sq > 0 ? Math.sqrt(sq) : 0;
+      }
+      return 0;
+    };
     if (openings.length >= 2) {
       const sorted = openings.slice().sort((a, b) => a.angle - b.angle);
       let worst = Infinity, gapAng = Math.PI / 2;
       for (let i = 0; i < sorted.length; i++) {
         const cur = sorted[i], nxt = sorted[(i + 1) % sorted.length];
         const dAng = (i === sorted.length - 1) ? (nxt.angle + TWO_PI - cur.angle) : (nxt.angle - cur.angle);
-        const wallArc = R * dAng - cur.width / 2 - nxt.width / 2;
+        const hLo = Math.max(cur.bottom || 0, nxt.bottom || 0);
+        const hHi = Math.min(cur.top, nxt.top);
+        let wallArc;
+        if (hHi > hLo + 1e-6) {
+          wallArc = Infinity;
+          for (let k = 0; k <= 6; k++) {
+            const h = hLo + 1e-6 + (k / 6) * (hHi - hLo - 2e-6);
+            const arc = radiusAt(h) * dAng - halfW(cur, h) - halfW(nxt, h);
+            if (arc < wallArc) wallArc = arc;
+          }
+        } else {
+          wallArc = R * dAng - cur.width / 2 - nxt.width / 2;  // never open together
+        }
         if (wallArc < worst) { worst = wallArc; gapAng = dAng; }
       }
       if (worst < OPENING_RULES.minWallArc) {
         const needR = (OPENING_RULES.minWallArc + doorW) / Math.max(0.1, gapAng); // rough min base radius
-        W.push(`Wall between openings is ${worst.toFixed(2)} m — must be ≥ 1.25 m (§3.6.9). Narrow the openings, or enlarge the dome to about Ø ${(2 * needR).toFixed(1)} m.`);
+        W.push(`Wall between openings is ${worst.toFixed(2)} m at opening height — must be ≥ 1.25 m (§3.6.9). Narrow the openings, or enlarge the dome to about Ø ${(2 * needR).toFixed(1)} m.`);
       }
     } else if (openings.length === 1) {
-      const wallArc = TWO_PI * R - openings[0].width;
+      const o = openings[0];
+      const hMid = ((o.bottom || 0) + o.top) / 2;
+      const wallArc = TWO_PI * radiusAt(hMid) - o.width;
       if (wallArc < OPENING_RULES.minWallArc) {
         W.push(`Opening leaves only ${wallArc.toFixed(2)} m of wall — must be ≥ 1.25 m (§3.6.9).`);
       }
@@ -295,7 +389,10 @@ const SuperAdobe = (() => {
     const yBot = y - chM / 2, yTop = y + chM / 2;   // course underside / top
     const gaps = [];
     for (const o of openings) {
-      if (yTop < o.bottom || yBot > o.top) continue;
+      // Boundary-touching courses stay whole: sills/springlines sit exactly on
+      // course boundaries (molds rest on finished rings), so a course whose
+      // top edge IS the sill — or whose underside IS the head — is not cut.
+      if (yTop <= o.bottom + 1e-6 || yBot >= o.top - 1e-6) continue;
 
       // Circular ("oculus") window: the gap is the CHORD of the circle at this
       // height. Carve at whichever course edge is nearer the centre so the round
@@ -453,6 +550,26 @@ const SuperAdobe = (() => {
       }
     }
     return last.inner + sw;
+  }
+
+  // ─── Base buttress courses (§3.6.8–3.6.9) ────────────────────────────────
+  // Buttresses are an extra wall of sacks around the dome's base, sewn to the
+  // base rings with barbed-wire "s"s, and must always be built to 50 cm above
+  // the springline (the top of the cylindrical base wall h1; 3–5 rings above
+  // it). Each course hugs the dome's outer face at its own height. Returns
+  // centreline courses [{y, r}] in the structure's local frame.
+  function buttressCourses(profile, sackWidthCm, courseHeightCm, baseWallHeight) {
+    if (!profile || !profile.length) return [];
+    const sw = sackWidthCm / 100;
+    const hs = courseHeightCm / 100;
+    const topY = (baseWallHeight || 0) + 0.5;      // springline + 50 cm
+    const courses = [];
+    for (let y = hs / 2; y <= topY + 1e-6; y += hs) {
+      const face = outerRadiusAt(profile, sw, y);  // dome outer face here
+      if (face == null) break;
+      courses.push({ y, r: face + sw / 2, inner: face });
+    }
+    return courses;
   }
 
   // ─── Ideal apse parameters (§3.6.8 / §3.6.9) ─────────────────────────────
@@ -757,19 +874,21 @@ const SuperAdobe = (() => {
   }
 
   // ─── Barbed wire course rings ─────────────────────────────────────────────
-  // Real superadobe lays barbed wire in the bedding joint ON TOP of each
-  // finished course (between this layer and the next), so it shows in the seam
-  // on the wall surface. Callers pass `y` = joint height and `r` = the outer
-  // top-corner radius of the course; one barbed strand is built per solid span.
-  // `bridges` (optional) connects the ring to the corridor: each entry has the
-  // door-gap edge angles { lo, hi } and the jamb point lists { prepend, append }
-  // (structure-local {x,z}, ordered mouth→dome / dome→mouth). Where a solid span
-  // ends on a door edge, the wire runs out along the jamb to the corridor mouth,
-  // so the dome ring and corridor wires are ONE connected line — broken only at
-  // real openings (windows, the corridor mouth).
-  function buildWireGeometries(y, r, gaps, barbLen, bridges) {
+  // §3.6.6: a DOUBLE line of barbed wire is stitched into the bedding joint ON
+  // TOP of each finished course — biased toward the interior so it sits under
+  // the NEXT ring ("more to the interior of the ring, to hold in place the
+  // next ring"). Callers pass `y` = joint height and `r` = the NEXT course's
+  // centreline radius; the two strands straddle it at r ± `spread`. `bridges`
+  // (optional) connects the ring to the corridor: each entry has the door-gap
+  // edge angles { lo, hi } and the jamb point lists { prepend, append }
+  // (structure-local {x,z}, ordered mouth→dome / dome→mouth). Where a solid
+  // span ends on a door edge, the INNER strand runs out along the jamb to the
+  // corridor mouth, so the dome ring and corridor wires are ONE connected line
+  // — broken only at real openings (windows, the corridor mouth).
+  function buildWireGeometries(y, r, gaps, barbLen, bridges, spread) {
     const spans = solidSpans(gaps);
     const bl = barbLen || 0.045;
+    const sp = spread != null ? spread : 0.04;    // half-separation of the pair
     const angNear = (a, b) => {
       const d = (((a - b) % TWO_PI) + TWO_PI) % TWO_PI;
       return d < 2e-3 || Math.abs(d - TWO_PI) < 2e-3;
@@ -780,19 +899,22 @@ const SuperAdobe = (() => {
       const sweep = a1 - a0;
       if (sweep <= 0.01) continue;
       const segs = Math.max(8, Math.round(r * 90 * sweep / TWO_PI));
-      let pts = [];
-      for (let i = 0; i <= segs; i++) {
-        const ang = a0 + (i / segs) * sweep;
-        pts.push(new THREE.Vector3(Math.cos(ang) * r, y, Math.sin(ang) * r));
-      }
-      if (bridges) {
-        for (const b of bridges) {
-          if (angNear(a0, b.hi)) pts = lift(b.prepend).concat(pts);
-          if (angNear(a1, b.lo)) pts = pts.concat(lift(b.append));
+      for (const rw of [r - sp, r + sp]) {          // the double line
+        if (rw <= 0.02) continue;
+        let pts = [];
+        for (let i = 0; i <= segs; i++) {
+          const ang = a0 + (i / segs) * sweep;
+          pts.push(new THREE.Vector3(Math.cos(ang) * rw, y, Math.sin(ang) * rw));
         }
+        if (bridges && rw < r) {                    // inner strand carries the jamb run
+          for (const b of bridges) {
+            if (angNear(a0, b.hi)) pts = lift(b.prepend).concat(pts);
+            if (angNear(a1, b.lo)) pts = pts.concat(lift(b.append));
+          }
+        }
+        const g = barbedStrand(pts, 0.2, bl);
+        if (g) geoms.push(g);
       }
-      const g = barbedStrand(pts, 0.2, bl);
-      if (g) geoms.push(g);
     }
     return geoms;
   }
@@ -822,13 +944,28 @@ const SuperAdobe = (() => {
     return geoms;
   }
 
-  // Barbed wire for the corridor: one strand laid on the bag CENTRELINE in the
-  // bedding joint on top of every corridor course (between the layers), exactly
+  // Offset a {x,z} polyline perpendicular to its local tangent (for the two
+  // strands of the §3.6.6 double wire along straight corridor courses).
+  function offsetPathXZ(path, d) {
+    const n = path.length, out = [];
+    for (let i = 0; i < n; i++) {
+      const a = path[Math.max(0, i - 1)], b = path[Math.min(n - 1, i + 1)];
+      let tx = b.x - a.x, tz = b.z - a.z;
+      const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+      out.push({ x: path[i].x + tz * d, z: path[i].z - tx * d });
+    }
+    return out;
+  }
+
+  // Barbed wire for the corridor: the §3.6.6 DOUBLE strand laid astride the bag
+  // centreline in the bedding joint on top of every corridor course, exactly
   // like the dome rings. Built from the SAME course paths as the bags, so the
   // wire and the bags always coincide. Returns LineSegments-ready geometries.
   function buildCorridorWireGeometries(opts) {
     const ch = opts.courseHeightCm / 100;
+    const bw = opts.bagWidthCm / 100;
     const bl = ch * 0.35;                 // barb half-size (matches the dome wire)
+    const sp = Math.min(0.05, Math.max(0.015, (bw - ch) / 4)); // strand half-separation
     const doorTop = opts.doorTop;
     const geoms = [];
     // Wire mode (ends on the dome centreline). The JAMB courses (y ≤ springline)
@@ -837,9 +974,11 @@ const SuperAdobe = (() => {
     for (const { y, path } of corridorCoursePaths(Object.assign({}, opts, { wireEdge: true }))) {
       if (y <= doorTop + 1e-6) continue;
       const wy = y + ch / 2 + 0.004;      // joint height, nudged just proud
-      const pts = path.map(p => new THREE.Vector3(p.x, wy, p.z));
-      const g = barbedStrand(pts, 0.2, bl);
-      if (g) geoms.push(g);
+      for (const off of [-sp, sp]) {      // the double line
+        const pts = offsetPathXZ(path, off).map(p => new THREE.Vector3(p.x, wy, p.z));
+        const g = barbedStrand(pts, 0.2, bl);
+        if (g) geoms.push(g);
+      }
     }
     geoms.forEach(g => g.rotateY(-opts.angle));
     return geoms;
@@ -1198,6 +1337,7 @@ const SuperAdobe = (() => {
   return {
     domeProfile,
     domeHeight,
+    coherency,
     cylinderProfile,
     vaultProfile,
     recommendedSack,
@@ -1209,6 +1349,7 @@ const SuperAdobe = (() => {
     openingGaps,
     intersectionGaps,
     idealApse,
+    buttressCourses,
     solidFraction,
     sliceSpans,
     buildShellGeometry,
