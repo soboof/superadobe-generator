@@ -1,0 +1,26 @@
+# Superadobe Generator
+
+> Free, open-source, browser-based 3D design studio for superadobe (earthbag) buildings. Lay out domes, vaults and multi-dome complexes, then get bag quantities, barbed-wire length, earth fill volume, layer-by-layer construction plans, build-time estimates and structural / thermal / seismic / wind checks. No signup, no install — it runs entirely client-side at https://soboof.github.io/superadobe-generator/
+
+Key facts:
+
+- **What it is:** a design and estimating tool for superadobe, the earthbag construction technique developed by architect Nader Khalili at the Cal-Earth Institute, in which long polypropylene bags/tubes are filled with moistened earth and coiled into courses, with barbed wire laid between courses.
+- **Three-stage workflow:** 1) Layout — position domes, vaults and cylinders, openings, corridors and apses, shown as one smooth merged shell; 2) Layering — the same complex rendered course by course (capsule-section bags plus barbed wire) with material quantities, time estimate and eco score; 3) Simulation — the shell colour-mapped by structural utilisation with membrane-theory stress, bearing, sliding, seismic, wind and thermal checks.
+- **Geometry model:** dome profiles follow the published equations for superadobe domed structures (revolved offset circular arc, x(h) = √((Rb+a)² − (h−h1)²) − a) from Universidad Politécnica de Madrid research, including the geometric-coherency check F = (L − step)/L between consecutive courses, opening quadrant rules, dome-intersection seams and corbelled door heads.
+- **Materials calculated:** bag/tube length per course, total barbed wire, earth fill volume (stadium bag cross-section), plaster, foundation volume, construction time for a chosen crew, and an eco score.
+- **Terrain:** a scanned point cloud of the real plot (.ply / .xyz) can be imported so structures sit on the actual ground surface.
+- **Tech:** vanilla HTML/CSS/JavaScript with Three.js (WebGL); a fully static site with no backend and no tracking.
+- **License / source:** open source on GitHub — https://github.com/soboof/superadobe-generator
+- **Author:** Soby Farahat (https://github.com/soboof)
+
+## Docs
+
+- [README](https://github.com/soboof/superadobe-generator#readme): full feature list, geometry engine documentation and construction rules
+- [Superadobe study & simulation spec](https://soboof.github.io/superadobe-generator/docs/SUPERADOBE-STUDY-AND-SIMULATION.md): the thesis-based engine specification (markdown)
+- [Source code](https://github.com/soboof/superadobe-generator): repository with all geometry, calculator and simulation code
+
+## References
+
+- López, González, Llauradó — "Equations that describe the geometry of Superadobe domed structures" (Universidad Politécnica de Madrid)
+- López Gómez, M.A. — "A study of the geometry and structural performance of Superadobe domes" (doctoral thesis, Universidad Politécnica de Madrid, 2021)
+- Cal-Earth Institute — origin of the superadobe technique (https://www.calearth.org/)

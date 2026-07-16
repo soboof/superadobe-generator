@@ -3,16 +3,184 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Super Adobe Generator</title>
+
+  <!-- Primary SEO -->
+  <title>Superadobe Generator — 3D Earthbag Dome Design & Calculator</title>
+  <meta name="description" content="Design superadobe / earthbag domes in 3D, free in your browser — bag counts, barbed wire, fill volume, layer-by-layer build plans and structural checks." />
+  <meta name="author" content="Soby Farahat" />
+  <link rel="canonical" href="https://soboof.github.io/superadobe-generator/" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0f1117" />
+
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <!-- Open Graph (link previews: WhatsApp, Facebook, LinkedIn, Discord, Slack…) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Superadobe Generator" />
+  <meta property="og:title" content="Superadobe Generator — free 3D earthbag dome design studio" />
+  <meta property="og:description" content="Lay out dome complexes, see every bag course in 3D, and get material quantities, build time and structural simulation. Free, open source, no signup." />
+  <meta property="og:url" content="https://soboof.github.io/superadobe-generator/" />
+  <meta property="og:image" content="https://soboof.github.io/superadobe-generator/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Superadobe Generator — a dome of stacked earthbags next to the app name" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Superadobe Generator — free 3D earthbag dome design studio" />
+  <meta name="twitter:description" content="Design superadobe / earthbag domes in 3D and get bag counts, barbed wire, layer plans, build time and structural checks. Free & open source." />
+  <meta name="twitter:image" content="https://soboof.github.io/superadobe-generator/assets/og-image.png" />
+
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Structured data for search engines and AI assistants -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Superadobe Generator",
+    "alternateName": "Super Adobe Generator",
+    "url": "https://soboof.github.io/superadobe-generator/",
+    "image": "https://soboof.github.io/superadobe-generator/assets/og-image.png",
+    "description": "Free browser-based 3D design studio for superadobe (earthbag) buildings. Lay out domes, vaults and multi-dome complexes, then get bag quantities, barbed-wire length, earth fill volume, plaster, layer-by-layer construction plans, build-time estimates and structural, thermal, seismic and wind checks.",
+    "applicationCategory": "DesignApplication",
+    "applicationSubCategory": "Construction calculator",
+    "operatingSystem": "Any (web browser with WebGL)",
+    "browserRequirements": "Requires JavaScript and WebGL",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "inLanguage": "en",
+    "author": { "@type": "Person", "name": "Soby Farahat", "url": "https://github.com/soboof" },
+    "sameAs": ["https://github.com/soboof/superadobe-generator"],
+    "softwareHelp": { "@type": "CreativeWork", "url": "https://github.com/soboof/superadobe-generator#readme" },
+    "featureList": [
+      "3D layout of superadobe domes, vaults and cylinders, including multi-dome complexes with corridors and apses",
+      "Course-by-course layering view with capsule-section bags and barbed-wire placement",
+      "Material calculator: bag/tube length, barbed wire, earth fill volume, plaster and foundation",
+      "Build-time estimate and eco score",
+      "Doors, windows and skylights with arched, flat or circular heads following published construction rules",
+      "Structural, thermal, seismic and wind performance checks based on UPM superadobe research",
+      "Land-scan import (.ply / .xyz point clouds) to place structures on real terrain",
+      "Printable plans and exportable reports"
+    ],
+    "about": {
+      "@type": "Thing",
+      "name": "Superadobe (earthbag) construction",
+      "description": "A natural building technique developed by architect Nader Khalili at the Cal-Earth Institute: long polypropylene bags are filled with moistened earth and coiled into dome courses, with barbed wire between courses.",
+      "sameAs": "https://en.wikipedia.org/wiki/Earthbag_construction"
+    },
+    "citation": [
+      {
+        "@type": "ScholarlyArticle",
+        "name": "Equations that describe the geometry of Superadobe domed structures",
+        "author": "López, González, Llauradó (Universidad Politécnica de Madrid)"
+      },
+      {
+        "@type": "Thesis",
+        "name": "A study of the geometry and structural performance of Superadobe domes",
+        "author": "M.A. López Gómez",
+        "datePublished": "2021",
+        "publisher": { "@type": "Organization", "name": "Universidad Politécnica de Madrid" }
+      }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is superadobe?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Superadobe is an earthbag construction technique developed by architect Nader Khalili at the Cal-Earth Institute. Long polypropylene bags or tubes are filled with moistened earth and laid in coiled courses to form domes and vaults, with strands of barbed wire between courses acting as mortar and tensile reinforcement."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does Superadobe Generator calculate?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "From your 3D design it estimates bag or tube length per course, total barbed wire, earth fill volume, plaster, foundation volume, an approximate construction time for your crew size, and an eco score. A simulation stage adds structural utilisation plus thermal, seismic and wind checks based on published research on superadobe dome geometry and performance."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Superadobe Generator free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. It is free and open source, runs entirely in your web browser with no signup or install, and the full source code is on GitHub."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I design multi-dome earthbag complexes?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. You can add several domes, overlap them so the bag courses interlock at the intersections, and add corridors, apses, doors, windows and skylights. The layer plans and material quantities follow the combined geometry."
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
+
+  <!-- Fallback content for browsers without JavaScript and for crawlers that don't run it -->
+  <noscript>
+    <div style="position:fixed; inset:0; z-index:9999; overflow:auto; background:#0f1117; color:#e2e8f0; padding:40px 24px; font-family:'Segoe UI',system-ui,sans-serif; line-height:1.6">
+      <div style="max-width:760px; margin:0 auto">
+        <h2 style="color:#4ade80">Superadobe Generator — free 3D earthbag dome design studio</h2>
+        <p><strong>Superadobe Generator</strong> is a free, open-source web app for designing
+        <strong>superadobe (earthbag) buildings</strong> — the natural construction technique developed by
+        architect Nader Khalili at the Cal-Earth Institute, where long polypropylene bags are filled with
+        moistened earth and coiled into dome courses with barbed wire between layers.</p>
+
+        <h3>What it does</h3>
+        <ul>
+          <li><strong>Layout:</strong> position domes, vaults and cylinders in 3D; overlap domes into complexes with corridors, apses, doors, windows and skylights.</li>
+          <li><strong>Layering:</strong> see the structure course by course, exactly as it would be built — every bag layer and the barbed wire between courses.</li>
+          <li><strong>Materials &amp; time:</strong> bag/tube length, barbed wire, earth fill volume, plaster, foundation, build-time estimate for your crew, and an eco score.</li>
+          <li><strong>Simulation:</strong> structural utilisation, bearing and sliding checks, plus thermal, seismic and wind read-outs.</li>
+          <li><strong>Real terrain:</strong> import a scanned point cloud of your plot (.ply / .xyz) and place structures on the actual ground.</li>
+        </ul>
+
+        <h3>The science</h3>
+        <p>The dome geometry follows the published equations for superadobe domed structures
+        (a revolved offset circular arc, not a hemisphere) and the construction rules from
+        Universidad Politécnica de Madrid research: <em>"Equations that describe the geometry of Superadobe
+        domed structures"</em> (López, González, Llauradó) and <em>"A study of the geometry and structural
+        performance of Superadobe domes"</em> (López Gómez, doctoral thesis, UPM 2021).</p>
+
+        <h3>FAQ</h3>
+        <p><strong>Is it free?</strong> Yes — free, open source, no signup. The code is on GitHub.</p>
+        <p><strong>What is superadobe?</strong> An earthbag building technique: earth-filled bags coiled into
+        self-supporting domes, reinforced with barbed wire between courses. Low-cost, low-carbon and owner-buildable.</p>
+        <p><strong>What do I need to run it?</strong> Just a browser — this app needs JavaScript and WebGL enabled.
+        Please enable JavaScript to use the designer.</p>
+
+        <p>
+          <a href="https://github.com/soboof/superadobe-generator" style="color:#4ade80">Source code on GitHub</a> ·
+          <a href="https://github.com/soboof/superadobe-generator#readme" style="color:#4ade80">Documentation</a> ·
+          <a href="docs/SUPERADOBE-STUDY-AND-SIMULATION.md" style="color:#4ade80">Geometry &amp; simulation study</a> ·
+          <a href="llms.txt" style="color:#4ade80">llms.txt (for AI assistants)</a>
+        </p>
+      </div>
+    </div>
+  </noscript>
 
   <!-- Header -->
   <header id="app-header">
     <div class="logo">
-      <span class="logo-icon">⬡</span>
-      <span class="logo-text">Super<strong>Adobe</strong> Generator</span>
+      <span class="logo-icon" aria-hidden="true">⬡</span>
+      <h1 class="logo-text">Super<strong>Adobe</strong> Generator<span class="sr-only"> — 3D superadobe &amp; earthbag dome designer and material calculator</span></h1>
     </div>
     <div id="step-tabs">
       <button class="step-tab active" data-level="1"><span class="step-num">1</span> Layout</button>

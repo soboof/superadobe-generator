@@ -1,5 +1,7 @@
 # Super Adobe Generator
 
+**▶ Live app: <https://soboof.github.io/superadobe-generator/>** — free, in your browser, no install.
+
 A browser-based 3D design tool for **superadobe / earthbag domed structures**. Lay out a
 complex of domes, set their openings, then drop into a layer-by-layer construction model
 that estimates materials, time, and an eco score.
